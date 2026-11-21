@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- coui 组件库：卡片 -->
+    <declare-styleable name="CouiCardView">
+        <attr name="cardBackgroundColor" format="color" />
+        <attr name="cardBorderColor" format="color" />
+        <attr name="cardBorderWidth" format="dimension" />
+        <attr name="cardCornerRadius" format="dimension" />
+        <attr name="cardHasShadow" format="boolean" />
+        <attr name="cardShadowColor" format="color" />
+        <attr name="cardShadowRadius" format="dimension" />
+        <attr name="cardShadowDx" format="dimension" />
+        <attr name="cardShadowDy" format="dimension" />
+    </declare-styleable>
+
+    <!-- coui 组件库：按钮（复用卡片的颜色/圆角属性 + 框架文字属性） -->
+    <declare-styleable name="CouiButton">
+        <attr name="buttonStyle" format="enum">
+            <enum name="filled" value="0" />
+            <enum name="outlined" value="1" />
+            <enum name="text" value="2" />
+            <enum name="tonal" value="3" />
+        </attr>
+        <attr name="iconSrc" format="reference" />
+        <attr name="iconGravity" format="enum">
+            <enum name="start" value="0" />
+            <enum name="end" value="1" />
+        </attr>
+        <attr name="iconSize" format="dimension" />
+        <attr name="iconPadding" format="dimension" />
+        <attr name="cardBackgroundColor" />
+        <attr name="cardBorderColor" />
+        <attr name="cardBorderWidth" />
+        <attr name="cardCornerRadius" />
+        <attr name="android:text" />
+        <attr name="android:textColor" />
+        <attr name="android:enabled" />
+    </declare-styleable>
+</resources>
