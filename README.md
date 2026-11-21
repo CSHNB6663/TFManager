@@ -45,6 +45,16 @@ tools/                               # 本地工具链脚本（sdk 与 cache 不
 scripts/publish.sh                   # 一键创建仓库 + push + 发布 Release
 ```
 
+## 发布与更新
+
+- 仓库：<https://github.com/CSHNB6663/TFManager>
+- 发布页：<https://github.com/CSHNB6663/TFManager/releases>
+- **App 默认更新源**（已内置）：
+  `https://api.github.com/repos/CSHNB6663/TFManager/releases/latest`
+
+发版流程：改 `AppVersion.java`（CODE = major*10000+minor*100+patch、NAME）+ `AndroidManifest` 版本号
+→ `bash build.sh` → `GH_TOKEN=xxx python3 scripts/publish.py TFManager public`
+
 ## 更新检查配置
 
 - **GitHub Releases**：`https://api.github.com/repos/<owner>/<repo>/releases/latest`

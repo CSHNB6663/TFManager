@@ -224,19 +224,32 @@ public final class UpdateChecker {
         }
     }
 
-    /** 从版本名里提取数字（"2.7.1" → 271）。 */
+    /**
+     * 点分版本号 → 语义化编码（major*10000 + minor*100 + patch）。
+     * 例："2.7.2" → 20702；"v2.7" → 20700；解析失败返回 0。
+     */
     private static int digits(String s) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (Character.isDigit(c)) {
-                sb.append(c);
-            }
-        }
-        try {
-            return sb.length() == 0 ? 0 : Integer.parseInt(sb.toString());
-        } catch (Throwable t) {
+        if (s == null) {
             return 0;
         }
+        String v = s.trim().replaceFirst("^[vV]", "");
+        String[] parts = v.split("[^0-9]+");
+        int major = 0;
+        int minor = 0;
+        int patch = 0;
+        try {
+            if (parts.length > 0 && !parts[0].isEmpty()) {
+                major = Integer.parseInt(parts[0]);
+            }
+            if (parts.length > 1 && !parts[1].isEmpty()) {
+                minor = Integer.parseInt(parts[1]);
+            }
+            if (parts.length > 2 && !parts[2].isEmpty()) {
+                patch = Integer.parseInt(parts[2]);
+            }
+        } catch (Throwable ignored) {
+            return major * 10000 + minor * 100 + patch;
+        }
+        return major * 10000 + minor * 100 + patch;
     }
 }

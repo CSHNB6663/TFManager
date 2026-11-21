@@ -878,10 +878,14 @@ public class MainActivity extends Activity {
     private static final String DEFAULT_UPDATE_PAGE =
             "https://pan.quark.cn/s/3a946401d243";
 
+    /** 默认自动更新源（GitHub Releases API，国内 api.github.com 可直连）。 */
+    private static final String DEFAULT_UPDATE_FEED =
+            "https://api.github.com/repos/CSHNB6663/TFManager/releases/latest";
+
     private String updateFeed() {
         String f = uiPrefs().getString("update_feed", "");
         if (f == null || f.trim().isEmpty()) {
-            return DEFAULT_UPDATE_PAGE;
+            return DEFAULT_UPDATE_FEED;
         }
         return f.trim();
     }
