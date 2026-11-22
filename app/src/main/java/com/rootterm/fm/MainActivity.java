@@ -83,6 +83,14 @@ public class MainActivity extends Activity {
 
     private TextView mHomeBadge;
     private CouiCardView mHomeStatusCard;
+    private TextView mInfoKernelFull;
+    private TextView mInfoHook;
+    private TextView mInfoZygisk;
+    private TextView mInfoModel;
+    private TextView mInfoFingerprint;
+    private TextView mInfoSelinux;
+    private TextView mInfoSeccomp;
+    private TextView mInfoRootImpl;
     private CouiCheckBadge mHomeCheckBadge;
     private TextView mHomeStatus;
     private TextView mHomeSub;
@@ -129,6 +137,7 @@ public class MainActivity extends Activity {
                 autoCheckUpdate();
             }
         }, 1500);
+        loadSystemInfo();
     }
 
     // ------------------------------------------------------------ 窗口
@@ -689,8 +698,19 @@ public class MainActivity extends Activity {
         dlp.topMargin = dp(12);
         page.addView(devCardView, dlp);
 
-        mHomeDevice = makeInfoRow(devCard, "设备名", Build.MANUFACTURER + " " + Build.MODEL);
+        // 管理器版本（本 App）
+        makeInfoRow(devCard, "管理器版本",
+                "v" + AppVersion.NAME + " (" + AppVersion.CODE + ")");
         mHomeKernel = makeInfoRow(devCard, "内核版本", "…");
+        mInfoKernelFull = makeWrapInfoRow(devCard, "内核完整版本", "…");
+        mInfoHook = makeInfoRow(devCard, "钩子类型", "…");
+        mInfoZygisk = makeInfoRow(devCard, "Zygisk 实现", "…");
+        mInfoModel = makeInfoRow(devCard, "设备型号", deviceModelText());
+        mInfoFingerprint = makeWrapInfoRow(devCard, "系统指纹", Build.FINGERPRINT);
+        mInfoSelinux = makeInfoRow(devCard, "SELinux 状态", "…");
+        mInfoSeccomp = makeInfoRow(devCard, "Seccomp 状态", "…");
+        mInfoRootImpl = makeInfoRow(devCard, "Root 实现", "…");
+        mHomeDevice = mInfoModel;
         makeInfoRow(devCard, "系统版本", "Android " + Build.VERSION.RELEASE
                 + " · SDK " + Build.VERSION.SDK_INT);
 
@@ -771,6 +791,221 @@ public class MainActivity extends Activity {
         }
         card.addView(row);
         return v;
+    }
+
+    /** 长值行：标签在上、值在下（可换行，用于指纹 / 完整内核版本）。 */
+    private TextView makeWrapInfoRow(LinearLayout card, String label, String value) {
+        if (card.getChildCount() > 0) {
+            card.addView(lightLine());
+        }
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(16), dp(12), dp(16), dp(12));
+
+        row.addView(UiConfig.text(this, label, 14f, C_TEXT));
+        TextView v = UiConfig.text(this, value, 11.5f, C_DIM);
+        v.setPadding(0, dp(4), 0, 0);
+        v.setTextIsSelectable(true);
+        row.addView(v);
+        card.addView(row);
+        return v;
+    }
+
+    /** 设备型号：避免「Xiaomi REDMI K80」这种重复。 */
+    private static String deviceModelText() {
+        String model = Build.MODEL == null ? "" : Build.MODEL.trim();
+        String mf = stripBrand(Build.MANUFACTURER);
+        if (model.isEmpty()) {
+            return mf;
+        }
+        if (!mf.isEmpty() && model.toLowerCase().startsWith(mf.toLowerCase())) {
+            return model;
+        }
+        return (mf + " " + model).trim();
+    }
+
+    private static String stripBrand(String manufacturer) {
+        if (manufacturer == null) {
+            return "";
+        }
+        String m = manufacturer.trim();
+        if (m.isEmpty()) {
+            return "";
+        }
+        return Character.toUpperCase(m.charAt(0)) + m.substring(1);
+    }
+
+    /** 后台读取系统信息（内核 / 钩子 / Zygisk / SELinux / Seccomp / Root 实现）。 */
+    private void loadSystemInfo() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String script = ""
+                        + "echo kv=$(uname -r 2>/dev/null)\n"
+                        + "echo kf=$(cat /proc/version 2>/dev/null)\n"
+                        + "echo se=$(/system/bin/getenforce 2>/dev/null || getenforce 2>/dev/null)\n"
+                        + "echo sc=$(awk '/^Seccomp:/{print $2}' /proc/self/status 2>/dev/null)\n"
+                        + "echo ksv=$(sed -n 's/^version=//p' /data/adb/ksu/module.prop 2>/dev/null | head -1)\n"
+                        + "echo apv=$(cat /data/adb/ap/version 2>/dev/null | head -1)\n"
+                        + "echo mgk=$(/data/adb/magisk/magisk -V 2>/dev/null | head -1)\n"
+                        + "echo zyn=$(sed -n 's/^name=//p' /data/adb/modules/zygisksu/module.prop 2>/dev/null | head -1)\n"
+                        + "echo zyv=$(sed -n 's/^version=//p' /data/adb/modules/zygisksu/module.prop 2>/dev/null | head -1)\n"
+                        + "echo hk1=$(cat /sys/module/kernelsu/parameters/hook_type 2>/dev/null)\n"
+                        + "echo hk2=$(cat /proc/ksu_hook_type 2>/dev/null)\n"
+                        + "echo hk3=$(grep -aom1 -E 'hook[a-z_]*=[a-z_]+' /proc/cmdline 2>/dev/null)\n"
+                        + "echo ksud=$(/data/adb/ksu/bin/ksud --version 2>/dev/null | head -1)\n"
+                        + "echo kmod=$(cat /sys/module/kernelsu/version 2>/dev/null)\n"
+                        + "echo ksu_dir=$([ -d /data/adb/ksu ] && echo yes)\n"
+                        + "echo tp=$(grep -ac 'ksu_tracepoint' /proc/kallsyms 2>/dev/null)\n"
+                        + "echo kp=$(grep -ac 'ksu_kprobe' /proc/kallsyms 2>/dev/null)\n"
+                        + "echo sy=$(grep -ac 'ksu_syscall' /proc/kallsyms 2>/dev/null)\n";
+                String out = Shell.execSync(script, 12000);
+                final java.util.HashMap<String, String> m = new java.util.HashMap<String, String>();
+                if (out != null) {
+                    for (String line : out.split("\n")) {
+                        int eq = line.indexOf('=');
+                        if (eq > 0) {
+                            m.put(line.substring(0, eq).trim(), line.substring(eq + 1).trim());
+                        }
+                    }
+                }
+                final String kernel = m.get("kv");
+                final String kernelFull = m.get("kf");
+                final String se = m.get("se");
+                final String sc = m.get("sc");
+                final String ksv = m.get("ksv");
+                final String apv = m.get("apv");
+                final String mgk = m.get("mgk");
+                final String zyn = m.get("zyn");
+                final String zyv = m.get("zyv");
+                final String hk1 = m.get("hk1");
+                final String hk2 = m.get("hk2");
+                final String hk3 = m.get("hk3");
+                final String ksud = m.get("ksud");
+                final String kmod = m.get("kmod");
+                final String ksuDir = m.get("ksu_dir");
+                final String tp = m.get("tp");
+                final String kp = m.get("kp");
+                final String sy = m.get("sy");
+
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (notEmpty(kernelFull) && mInfoKernelFull != null) {
+                            mInfoKernelFull.setText(kernelFull);
+                        } else if (notEmpty(kernel) && mInfoKernelFull != null) {
+                            mInfoKernelFull.setText(kernel);
+                        }
+
+                        // 钩子类型：优先内核参数/proc 文件，其次 cmdline，最后按内核版本标记推断
+                        String hook = "";
+                        if (notEmpty(hk1)) {
+                            hook = hk1;
+                        } else if (notEmpty(hk2)) {
+                            hook = hk2;
+                        } else if (notEmpty(hk3)) {
+                            hook = hk3;
+                        } else if (count(tp) > 0 || count(sy) > 0) {
+                            StringBuilder hb = new StringBuilder();
+                            if (count(tp) > 0) {
+                                hb.append("Tracepoint");
+                            }
+                            if (count(sy) > 0) {
+                                if (hb.length() > 0) {
+                                    hb.append(' ');
+                                }
+                                hb.append("Syscall Redirect");
+                            }
+                            hook = hb.toString();
+                        } else if (count(kp) > 0) {
+                            hook = "Kprobe";
+                        } else if (kernel != null) {
+                            String k = kernel.toLowerCase();
+                            if (k.contains("kprobe")) {
+                                hook = "Kprobe";
+                            } else if (k.contains("tracepoint")) {
+                                hook = "Tracepoint";
+                            } else if (k.contains("syscall")) {
+                                hook = "Syscall Redirect";
+                            }
+                        }
+                        if (mInfoHook != null) {
+                            mInfoHook.setText(hook.isEmpty() ? "未检测到" : hook);
+                        }
+
+                        // Zygisk 实现
+                        String zyg = "未检测到";
+                        if (notEmpty(zyn)) {
+                            zyg = zyn + (notEmpty(zyv) ? " " + zyv : "");
+                        }
+                        if (mInfoZygisk != null) {
+                            mInfoZygisk.setText(zyg);
+                        }
+
+                        // Root 实现
+                        String root = "未检测到";
+                        if (notEmpty(ksv)) {
+                            root = "KernelSU " + ksv;
+                        } else if (notEmpty(ksud) || notEmpty(kmod) || "yes".equals(ksuDir)) {
+                            String v = notEmpty(ksud) ? ksud : kmod;
+                            root = "KernelSU" + (notEmpty(v) ? " " + v : "");
+                        } else if (notEmpty(apv)) {
+                            root = "APatch " + apv;
+                        } else if (notEmpty(mgk)) {
+                            root = "Magisk " + mgk;
+                        }
+                        if (mInfoRootImpl != null) {
+                            mInfoRootImpl.setText(root);
+                        }
+
+                        // SELinux
+                        String sel = "未知";
+                        if ("Enforcing".equalsIgnoreCase(se)) {
+                            sel = "强制执行";
+                        } else if ("Permissive".equalsIgnoreCase(se)) {
+                            sel = "宽容模式";
+                        } else if ("Disabled".equalsIgnoreCase(se)) {
+                            sel = "已关闭";
+                        } else if (notEmpty(se)) {
+                            sel = se;
+                        }
+                        if (mInfoSelinux != null) {
+                            mInfoSelinux.setText(sel);
+                        }
+
+                        // Seccomp
+                        String sec = "未知";
+                        if ("0".equals(sc)) {
+                            sec = "已关闭";
+                        } else if ("1".equals(sc)) {
+                            sec = "严格模式";
+                        } else if ("2".equals(sc)) {
+                            sec = "过滤模式";
+                        } else if (notEmpty(sc)) {
+                            sec = sc;
+                        }
+                        if (mInfoSeccomp != null) {
+                            mInfoSeccomp.setText(sec);
+                        }
+                    }
+                });
+            }
+        }, "sys-info").start();
+    }
+
+    private static int count(String s) {
+        if (s == null || s.isEmpty()) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(s.trim());
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    private static boolean notEmpty(String s) {
+        return s != null && !s.isEmpty() && !"-".equals(s);
     }
 
     /** 后台读取：内核版本 / 总存储 / 运行内存。 */
