@@ -66,11 +66,12 @@ public class PartitionPanel extends LinearLayout {
 
     private void build() {
         ScrollView sv = new ScrollView(ctx);
+        sv.setVerticalFadingEdgeEnabled(false);
         sv.setBackgroundColor(0x00000000);
 
         LinearLayout page = new LinearLayout(ctx);
         page.setOrientation(VERTICAL);
-        page.setPadding(dp(20), dp(22), dp(20), dp(18));
+        page.setPadding(dp(20), dp(22), dp(20), dp(112));
 
         // 标题 + 刷新
         LinearLayout head = new LinearLayout(ctx);

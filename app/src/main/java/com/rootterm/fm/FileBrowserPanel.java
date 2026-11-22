@@ -393,6 +393,7 @@ public class FileBrowserPanel extends LinearLayout {
         FrameLayout wrap = new FrameLayout(ctx);
 
         list = new ListView(ctx);
+        list.setVerticalFadingEdgeEnabled(false);
         list.setBackgroundColor(0x00000000);
         list.setDivider(null);
         list.setDividerHeight(0);

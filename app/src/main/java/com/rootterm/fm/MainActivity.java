@@ -276,8 +276,9 @@ public class MainActivity extends Activity {
     // ------------------------------------------------------------ 根布局
 
     private View buildRoot() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
+        // 用 FrameLayout：页面铺满整屏，底栏浮在上面，
+        // 页面与底栏之间不存在「交界」，也就不会有分割线。
+        FrameLayout root = new FrameLayout(this);
         root.setBackground(ThemeColors.pageBackground());  // 唯一的渐变层
 
         mPages = new SwipeBox(this, new SwipeBox.Callback() {
@@ -294,8 +295,9 @@ public class MainActivity extends Activity {
             }
         });
         mPages.setBackgroundColor(0x00000000);
-        root.addView(mPages, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        mPages.setClipToPadding(false);
+        root.addView(mPages, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         mHomePage = buildHomePage();
         mSettingsPage = buildSettingsPage();
@@ -336,7 +338,11 @@ public class MainActivity extends Activity {
         mPages.addView(mSafCard, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        root.addView(buildBottomNav());
+        View nav = buildBottomNav();
+        FrameLayout.LayoutParams nlp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        nlp.gravity = Gravity.BOTTOM;
+        root.addView(nav, nlp);
 
         installInsets(root);
         return root;
@@ -391,6 +397,20 @@ public class MainActivity extends Activity {
         FrameLayout wrap = new FrameLayout(this);
         wrap.setBackgroundColor(0x00000000);
         wrap.setClipToPadding(false);
+        wrap.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(126)));
+
+        // 底部渐隐遮罩：从透明渐变到页面底色，内容滚到底时自然淡出（不是硬分割线）
+        View scrim = new View(this);
+        android.graphics.drawable.GradientDrawable gd =
+                new android.graphics.drawable.GradientDrawable(
+                        android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                        new int[]{0x00E6EDF9, 0xB3E6EDF9, 0xF2E6EDF9});
+        scrim.setBackground(gd);
+        scrim.setClickable(false);
+        scrim.setFocusable(false);
+        wrap.addView(scrim, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         mMiuixNav = new MiuixNavBar(this);
         mMiuixNav.addItem("首页", resId("ic_nav_home"));
@@ -510,13 +530,12 @@ public class MainActivity extends Activity {
         });
         mFiles.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        // 底栏浮在上面，文件页底部留出空间
+        mFilesCard.setPadding(0, 0, 0, dp(96));
 
-        // 文件管理：白底 + 四角圆形卡片（无阴影）
+        // 文件管理：透明容器（背景由根渐变提供，避免硬边）
         mFilesCard = new FrameLayout(this);
-        GradientDrawable card = new GradientDrawable();
-        card.setColor(0xFFFFFFFF);
-        card.setCornerRadius(dp(22));
-        mFilesCard.setBackground(card);
+        mFilesCard.setBackgroundColor(0x00000000);
         mFilesCard.setClipToOutline(true);
         mFilesCard.setOutlineProvider(new android.view.ViewOutlineProvider() {
             @Override
@@ -540,6 +559,7 @@ public class MainActivity extends Activity {
 
     private LinearLayout buildHomePage() {
         ScrollView sv = new ScrollView(this);
+        sv.setVerticalFadingEdgeEnabled(false);
         sv.setBackgroundColor(0x00000000);
         sv.setFillViewport(true);
 
@@ -1326,11 +1346,12 @@ public class MainActivity extends Activity {
 
     private LinearLayout buildSettingsPage() {
         ScrollView sv = new ScrollView(this);
+        sv.setVerticalFadingEdgeEnabled(false);
         sv.setBackgroundColor(0x00000000);
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
         page.setBackgroundColor(0x00000000);
-        page.setPadding(dp(20), dp(22), dp(20), dp(18));
+        page.setPadding(dp(20), dp(22), dp(20), dp(112));
 
         TextView title = UiConfig.text(this, "设置", MiuixTheme.TEXT_TITLE, C_TEXT);
         title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
