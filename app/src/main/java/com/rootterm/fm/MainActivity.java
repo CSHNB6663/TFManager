@@ -177,10 +177,25 @@ public class MainActivity extends Activity {
                 refreshNavBackdrop();
             }
         }, 700);
-        registerUsbReceiver();
+        try {
+            registerUsbReceiver();
+        } catch (Throwable ignored) {
+        }
         // 通知权限（API 33+）与状态栏常驻
-        requestNotifyPermission();
-        NotifyService.startIfEnabled(this);
+        try {
+            requestNotifyPermission();
+        } catch (Throwable ignored) {
+        }
+        // 延迟拉起常驻服务，避免首次启动时前台服务被系统拒绝导致崩溃
+        mPages.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    NotifyService.startIfEnabled(MainActivity.this);
+                } catch (Throwable ignored) {
+                }
+            }
+        }, 900);
         // 启动自动播放背景音乐
         mPages.postDelayed(new Runnable() {
             @Override
@@ -2268,7 +2283,15 @@ public class MainActivity extends Activity {
                         BgmPlayer.setPath(MainActivity.this, f.getAbsolutePath());
                         toast("已选择：" + f.getName());
                         if (BgmPlayer.enabled(MainActivity.this)) {
-                            BgmPlayer.play(MainActivity.this);
+                            new Thread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    try {
+                                        BgmPlayer.play(MainActivity.this);
+                                    } catch (Throwable ignored) {
+                                    }
+                                }
+                            }, "bgm-pick").start();
                         }
                     }
                 });
@@ -2297,11 +2320,18 @@ public class MainActivity extends Activity {
                     .show();
             return;
         }
-        if (BgmPlayer.play(this)) {
-            toast("开始播放");
-        } else {
-            toast("播放失败（文件可能损坏或格式不支持）");
-        }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final boolean ok = BgmPlayer.play(MainActivity.this);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        toast(ok ? "开始播放" : "播放失败（文件可能损坏或格式不支持）");
+                    }
+                });
+            }
+        }, "bgm-play").start();
     }
 
     /** 启动时自动播放背景音乐。 */
@@ -2309,10 +2339,19 @@ public class MainActivity extends Activity {
         if (!BgmPlayer.enabled(this)) {
             return;
         }
-        if (!BgmPlayer.fileReady(this)) {
-            return;
-        }
-        BgmPlayer.play(this);
+        // 关键：首次启动要解压内置音乐(4.5MB)+MediaPlayer.prepare()，
+        // 在主线程做会被系统判定卡死 → 表现为「首次打开闪退、第二次正常」。
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    if (BgmPlayer.fileReady(MainActivity.this)) {
+                        BgmPlayer.play(MainActivity.this);
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        }, "bgm-auto").start();
     }
 
     // ------------------------------------------------------------ 番茄小说下载
