@@ -22,5 +22,10 @@ fi
 
 ui_print "- 已内置 WebUI：模块页点「打开」进入面板"
 ui_print "- 已内置操作脚本：模块页点「执行」一键启动 App"
-ui_print "- 拨号盘暗码：*#*#7891#*#*  直接打开管理器页面"
+ui_print "- 附带暗码助手：拨号盘输入 *#*#7891#*#* 直接打开"
+HELPER="$MODPATH/helper/TFSecretCode.apk"
+if [ -f "$HELPER" ]; then
+  pm install -r "$HELPER" >/dev/null 2>&1 && ui_print "- 暗码助手已安装" \
+    || ui_print "- 暗码助手将在开机后由 service.sh 安装"
+fi
 ui_print "- 安装完成，重启后生效"

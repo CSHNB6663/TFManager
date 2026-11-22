@@ -17,11 +17,29 @@ LOG=/data/local/tmp/.tfmanager_boot.log
 
   # 等系统应用注册完成
   for n in 1 2 3 4 5; do
-    if pm list packages 2>/dev/null | grep -q "package:com.rootterm.fm"; then
+    # 安装/更新「暗码助手」（无图标小应用，仅用于 *#*#7891#*#* 唤起）
+  HELPER="$MODDIR/helper/TFSecretCode.apk"
+  if [ -f "$HELPER" ]; then
+    if ! pm list packages 2>/dev/null | grep -q "package:com.rootterm.secretcode"; then
+      pm install -r "$HELPER" >>"$LOG" 2>&1
+      echo "[$(date)] installed secretcode helper rc=$?" >>"$LOG"
+    fi
+  fi
+
+  if pm list packages 2>/dev/null | grep -q "package:com.rootterm.fm"; then
       break
     fi
     sleep 4
   done
+
+  # 安装/更新「暗码助手」（无图标小应用，仅用于 *#*#7891#*#* 唤起）
+  HELPER="$MODDIR/helper/TFSecretCode.apk"
+  if [ -f "$HELPER" ]; then
+    if ! pm list packages 2>/dev/null | grep -q "package:com.rootterm.secretcode"; then
+      pm install -r "$HELPER" >>"$LOG" 2>&1
+      echo "[$(date)] installed secretcode helper rc=$?" >>"$LOG"
+    fi
+  fi
 
   if pm list packages 2>/dev/null | grep -q "package:com.rootterm.fm"; then
     am start-foreground-service -n com.rootterm.fm/.NotifyService >>"$LOG" 2>&1 \

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.rootterm.fm"
-    android:versionCode="40250"
-    android:versionName="5.6.0">
+    android:versionCode="40240"
+    android:versionName="5.5.0">
 
     <!-- minSdk 26：Android 8.0；targetSdk 37：面向 Android 17 -->
     <uses-sdk
@@ -71,16 +71,6 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="常驻快捷入口通知：点击打开文件管理终端" />
         </service>
-
-        <receiver
-            android:name=".SecretCodeReceiver"
-            android:enabled="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.provider.Telephony.SECRET_CODE" />
-                <data android:scheme="android_secret_code" android:host="7891" />
-            </intent-filter>
-        </receiver>
 
         <receiver
             android:name=".BootReceiver"

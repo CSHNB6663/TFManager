@@ -16,3 +16,5 @@ Thumbs.db
 ksu-module/system/
 *.zip
 ksu-module/webroot/
+helper-app/
+tools/out-helper/
