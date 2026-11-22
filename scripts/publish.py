@@ -60,15 +60,24 @@ def main():
     login = json.loads(data)["login"]
     print("== 账号：%s  仓库：%s（%s）" % (login, REPO, VISIBILITY))
 
-    # 1) 创建仓库（422 = 已存在）
-    code, data = call("POST", API + "/user/repos", {
+    # 1) 先查仓库是否已存在（避免触发创建频率限制）
+    code0, data0 = call("GET", API + "/repos/%s/%s" % (login, REPO))
+    if 200 <= code0 < 300:
+        print("== 仓库已存在，跳过创建")
+        repo_ready = True
+    else:
+        repo_ready = False
+
+    code, data = (0, b"") if repo_ready else call("POST", API + "/user/repos", {
         "name": REPO,
         "private": VISIBILITY == "private",
         "description": "TF管理终端 · Android 文件管理 + root 终端",
         "has_issues": True,
         "has_wiki": False,
     })
-    if code == 201:
+    if repo_ready:
+        pass
+    elif code == 201:
         print("== 仓库已创建")
     elif code == 422:
         print("== 仓库已存在，继续")

@@ -40,11 +40,11 @@ public class MiuixGlass extends FrameLayout {
     private int mTintBottom = 0xCCFFFFFF;
     private int mRimLight = 0x99FFFFFF;
     private int mRimDark = 0x1A000000;
-    private int mSpecColor = 0x66FFFFFF;
+    private int mSpecColor = 0x2EFFFFFF;
 
     private Bitmap mBackdrop;
     private final Rect mSrc = new Rect();
-    private boolean mShowSpecular = true;
+    private boolean mShowSpecular = false;
     private boolean mShowRim = true;
 
     public MiuixGlass(Context c) {

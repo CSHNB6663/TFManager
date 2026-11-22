@@ -324,6 +324,8 @@ public class PartitionPanel extends LinearLayout {
             @Override
             public void run() {
                 final List<Part> list = new ArrayList<Part>();
+                // 注意：A/B 设备里 boot 与 boot_a 常指向同一节点，
+                // 必须按「真实设备路径」去重，否则容量会重复累加。
                 String script = ""
                         + "for d in /dev/block/by-name /dev/block/platform/*/by-name "
                         + "/dev/block/mapper; do "
@@ -332,11 +334,13 @@ public class PartitionPanel extends LinearLayout {
                         + "    [ -e $f ] || continue; "
                         + "    n=$(basename $f); "
                         + "    p=$(readlink -f $f 2>/dev/null); "
-                        + "    s=$(blockdev --getsize64 $p 2>/dev/null); "
+                        + "    [ -z \"$p\" ] && p=$f; "
+                        + "    s=$(blockdev --getsize64 \"$p\" 2>/dev/null); "
+                        + "    [ -z \"$s\" ] && s=$(cat /sys/class/block/$(basename \"$p\")/size 2>/dev/null); "
                         + "    [ -z \"$s\" ] && s=0; "
                         + "    echo \"$n|$s|$p\"; "
                         + "  done; "
-                        + "done | sort -u -t'|' -k1,1";
+                        + "done | awk -F'|' '!seen[$3]++ {print}' | sort -t'|' -k1,1";
                 String out = Shell.execSync(script, 25000);
                 if (out != null) {
                     for (String line : out.split("\n")) {
@@ -354,6 +358,11 @@ public class PartitionPanel extends LinearLayout {
                             p.size = Long.parseLong(c[1]);
                         } catch (Throwable ignored) {
                             p.size = 0;
+                        }
+                        // 兜底值来自 sysfs（512 字节扇区），小于 4KB 且非 0 时按扇区换算
+                        if (p.size > 0 && p.size < 4096 && c.length > 2
+                                && !c[1].isEmpty()) {
+                            p.size = p.size * 512L;
                         }
                         p.path = c[2];
                         p.type = guessType(p.name);

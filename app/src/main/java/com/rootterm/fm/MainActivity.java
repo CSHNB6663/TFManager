@@ -569,8 +569,9 @@ public class MainActivity extends Activity {
         // ---------- 左方块：工作中（绿底 + 大对勾） ----------
         MiuixGlass leftBox = new MiuixGlass(this);
         leftBox.radiusDp(MiuixTheme.RADIUS_MEDIUM);
-        leftBox.tint(0xE8E7F7EC, 0xD9D7F0DF);
-        leftBox.rim(0x99FFFFFF, 0x141FA35B);
+        leftBox.tint(0xFFE9F8EE, 0xFFDFF3E6);
+        leftBox.rim(0x33FFFFFF, 0x0D1FA35B);
+        leftBox.specular(false);
         mHomeStatusBox = leftBox;
 
         mHomeCheckBadge = new CouiCheckBadge(this);
@@ -624,6 +625,7 @@ public class MainActivity extends Activity {
         MiuixGlass rightBox = new MiuixGlass(this);
         rightBox.radiusDp(MiuixTheme.RADIUS_MEDIUM);
         rightBox.accentTint();
+        rightBox.specular(false);
         rightBox.setClickable(true);
         rightBox.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1521,11 +1523,11 @@ public class MainActivity extends Activity {
         // 左边状态方块：root 时绿色玻璃，否则灰色玻璃
         if (mHomeStatusBox != null) {
             if (root) {
-                mHomeStatusBox.tint(0xE8E7F7EC, 0xD9D7F0DF);
-                mHomeStatusBox.rim(0x99FFFFFF, 0x141FA35B);
+                mHomeStatusBox.tint(0xFFE9F8EE, 0xFFDFF3E6);
+                mHomeStatusBox.rim(0x33FFFFFF, 0x0D1FA35B);
             } else {
-                mHomeStatusBox.tint(0xE8F2F3F5, 0xD9EDEFF2);
-                mHomeStatusBox.rim(0x99FFFFFF, 0x14000000);
+                mHomeStatusBox.tint(0xFFF4F5F7, 0xFFEDEFF2);
+                mHomeStatusBox.rim(0x33FFFFFF, 0x0D000000);
             }
         }
         if (mHomeCheckBadge != null) {
