@@ -20,5 +20,6 @@ if pm list packages 2>/dev/null | grep -q "package:com.rootterm.fm"; then
   ui_print "! 建议先卸载旧版再重启，或忽略此提示"
 fi
 
-ui_print "- 已内置 WebUI（模块页点「打开」即可使用）"
+ui_print "- 已内置 WebUI：模块页点「打开」进入面板"
+ui_print "- 已内置操作脚本：模块页点「执行」一键启动 App"
 ui_print "- 安装完成，重启后生效"
