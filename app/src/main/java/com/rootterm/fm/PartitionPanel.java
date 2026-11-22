@@ -71,7 +71,7 @@ public class PartitionPanel extends LinearLayout {
 
         LinearLayout page = new LinearLayout(ctx);
         page.setOrientation(VERTICAL);
-        page.setPadding(dp(20), dp(22), dp(20), dp(112));
+        page.setPadding(dp(20), dp(22), dp(20), dp(160));
 
         // 标题 + 刷新
         LinearLayout head = new LinearLayout(ctx);
