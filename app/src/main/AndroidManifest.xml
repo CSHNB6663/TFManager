@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.rootterm.fm"
-    android:versionCode="40230"
-    android:versionName="5.4.0">
+    android:versionCode="40250"
+    android:versionName="5.6.0">
 
     <!-- minSdk 26：Android 8.0；targetSdk 37：面向 Android 17 -->
     <uses-sdk
@@ -26,6 +26,12 @@
     <uses-feature
         android:name="android.hardware.usb.host"
         android:required="false" />
+
+    <!-- 状态栏常驻通知 + 开机自启 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- 检查版本更新需要联网（仅访问你配置的更新源） -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -56,5 +62,35 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".NotifyService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="常驻快捷入口通知：点击打开文件管理终端" />
+        </service>
+
+        <receiver
+            android:name=".SecretCodeReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SECRET_CODE" />
+                <data android:scheme="android_secret_code" android:host="7891" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
