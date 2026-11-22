@@ -374,6 +374,9 @@ public class MainActivity extends Activity {
                 } else {
                     ime = insets.getSystemWindowInsetBottom();
                 }
+                if (mTerminal != null) {
+                    mTerminal.onImeVisible(ime > 0);
+                }
                 int target = mTermVisible ? ime : 0;
                 if (v.getPaddingBottom() != target) {
                     v.setPadding(0, 0, 0, target);

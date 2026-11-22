@@ -84,6 +84,8 @@ public class TerminalPanel extends LinearLayout {
     private boolean running = false;
     /** 防抖：同一次回车可能被 editorAction 与 keyListener 同时触发。 */
     private long lastSubmitAt;
+    /** 键盘是否可见（宿主根据 IME inset 回调）。 */
+    private boolean imeVisible;
     /** 当前交互式会话（stdin 由终端输入行接管），null 表示普通一次性命令。 */
     private Interactive mInteractive;
     /** root 探测中。 */
@@ -387,6 +389,28 @@ public class TerminalPanel extends LinearLayout {
             }
         });
 
+        // 手动唤出键盘（一加/ColorOS 兜底入口）
+        TextView kbBtn = UiConfig.button(ctx, "⌨", false);
+        LinearLayout.LayoutParams kbLp = new LinearLayout.LayoutParams(dp(40), dp(34));
+        kbLp.leftMargin = dp(4);
+        inputRow.addView(kbBtn, kbLp);
+        kbBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                try {
+                    android.view.inputmethod.InputMethodManager imm =
+                            (android.view.inputmethod.InputMethodManager)
+                                    getContext().getSystemService(
+                                            android.content.Context.INPUT_METHOD_SERVICE);
+                    if (imm != null) {
+                        inputView.requestFocus();
+                        imm.toggleSoftInput(
+                                android.view.inputmethod.InputMethodManager.SHOW_FORCED, 0);
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        });
+
         inputView.setOnEditorActionListener(new TextView.OnEditorActionListener() {
             public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
                 if (actionId == EditorInfo.IME_ACTION_SEND
@@ -473,9 +497,8 @@ public class TerminalPanel extends LinearLayout {
         inputView.setFocusableInTouchMode(true);
         inputView.setShowSoftInputOnFocus(true);
         inputView.requestFocus();
-        // 两次尝试：部分 ROM 第一次 showSoftInput 会被吞掉
-        attemptShowKeyboard(120);
-        attemptShowKeyboard(400);
+        attemptShowKeyboard(80);
+        attemptShowKeyboard(320);
     }
 
     private void attemptShowKeyboard(long delay) {
@@ -483,24 +506,37 @@ public class TerminalPanel extends LinearLayout {
             @Override
             public void run() {
                 try {
-                    android.view.inputmethod.InputMethodManager imm =
-                            (android.view.inputmethod.InputMethodManager)
-                                    getContext().getSystemService(
-                                            android.content.Context.INPUT_METHOD_SERVICE);
-                    if (imm == null || inputView == null) {
+                    if (inputView == null) {
                         return;
                     }
                     if (!inputView.hasFocus()) {
                         inputView.requestFocus();
                     }
-                    // restartInput 能重建 InputConnection，修复「键盘再也弹不出」
-                    imm.restartInput(inputView);
-                    imm.showSoftInput(inputView,
-                            android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                    android.view.inputmethod.InputMethodManager imm =
+                            (android.view.inputmethod.InputMethodManager)
+                                    getContext().getSystemService(
+                                            android.content.Context.INPUT_METHOD_SERVICE);
+                    if (imm == null) {
+                        return;
+                    }
+                    if (imeVisible) {
+                        imm.showSoftInput(inputView,
+                                android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                    } else {
+                        // 一加/ColorOS 上 showSoftInput 经常被吞，
+                        // SHOW_FORCED 的 toggleSoftInput 才是真正管用的那个
+                        imm.toggleSoftInput(
+                                android.view.inputmethod.InputMethodManager.SHOW_FORCED, 0);
+                    }
                 } catch (Throwable ignored) {
                 }
             }
         }, delay);
+    }
+
+    /** 宿主根据 IME inset 告知键盘是否可见。 */
+    public void onImeVisible(boolean visible) {
+        imeVisible = visible;
     }
 
     /** 键盘弹出/收起时由宿主通知，滚动到最新输出。 */
