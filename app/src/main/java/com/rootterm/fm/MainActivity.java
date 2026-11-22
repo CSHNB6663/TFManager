@@ -86,13 +86,9 @@ public class MainActivity extends Activity {
     private CouiCardView mHomeStatusBox;
     private TextView mHomeMode;
     private TextView mInfoKernelFull;
-    private TextView mInfoHook;
-    private TextView mInfoZygisk;
     private TextView mInfoModel;
     private TextView mInfoFingerprint;
-    private TextView mInfoSelinux;
     private TextView mInfoSeccomp;
-    private TextView mInfoRootImpl;
     private CouiCheckBadge mHomeCheckBadge;
     private TextView mHomeStatus;
     private TextView mHomeSub;
@@ -781,13 +777,9 @@ public class MainActivity extends Activity {
                 "v" + AppVersion.NAME + " (" + AppVersion.CODE + ")");
         mHomeKernel = makeInfoRow(devCard, "内核版本", "…");
         mInfoKernelFull = makeWrapInfoRow(devCard, "内核完整版本", "…");
-        mInfoHook = makeInfoRow(devCard, "钩子类型", "…");
-        mInfoZygisk = makeInfoRow(devCard, "Zygisk 实现", "…");
         mInfoModel = makeInfoRow(devCard, "设备型号", deviceModelText());
         mInfoFingerprint = makeWrapInfoRow(devCard, "系统指纹", Build.FINGERPRINT);
-        mInfoSelinux = makeInfoRow(devCard, "SELinux 状态", "…");
         mInfoSeccomp = makeInfoRow(devCard, "Seccomp 状态", "…");
-        mInfoRootImpl = makeInfoRow(devCard, "Root 实现", "…");
         mHomeDevice = mInfoModel;
         makeInfoRow(devCard, "系统版本", "Android " + Build.VERSION.RELEASE
                 + " · SDK " + Build.VERSION.SDK_INT);
@@ -975,52 +967,7 @@ public class MainActivity extends Activity {
                             mInfoKernelFull.setText(kernel);
                         }
 
-                        // 钩子类型：优先内核参数/proc 文件，其次 cmdline，最后按内核版本标记推断
-                        String hook = "";
-                        if (notEmpty(hk1)) {
-                            hook = hk1;
-                        } else if (notEmpty(hk2)) {
-                            hook = hk2;
-                        } else if (notEmpty(hk3)) {
-                            hook = hk3;
-                        } else if (count(tp) > 0 || count(sy) > 0) {
-                            StringBuilder hb = new StringBuilder();
-                            if (count(tp) > 0) {
-                                hb.append("Tracepoint");
-                            }
-                            if (count(sy) > 0) {
-                                if (hb.length() > 0) {
-                                    hb.append(' ');
-                                }
-                                hb.append("Syscall Redirect");
-                            }
-                            hook = hb.toString();
-                        } else if (count(kp) > 0) {
-                            hook = "Kprobe";
-                        } else if (kernel != null) {
-                            String k = kernel.toLowerCase();
-                            if (k.contains("kprobe")) {
-                                hook = "Kprobe";
-                            } else if (k.contains("tracepoint")) {
-                                hook = "Tracepoint";
-                            } else if (k.contains("syscall")) {
-                                hook = "Syscall Redirect";
-                            }
-                        }
-                        if (mInfoHook != null) {
-                            mInfoHook.setText(hook.isEmpty() ? "未检测到" : hook);
-                        }
-
-                        // Zygisk 实现
-                        String zyg = "未检测到";
-                        if (notEmpty(zyn)) {
-                            zyg = zyn + (notEmpty(zyv) ? " " + zyv : "");
-                        }
-                        if (mInfoZygisk != null) {
-                            mInfoZygisk.setText(zyg);
-                        }
-
-                        // Root 实现
+                        // Root 实现（仅用于首页 <KSU> 标记）
                         String root = "未检测到";
                         if (notEmpty(ksv)) {
                             root = "KernelSU " + ksv;
@@ -1031,9 +978,6 @@ public class MainActivity extends Activity {
                             root = "APatch " + apv;
                         } else if (notEmpty(mgk)) {
                             root = "Magisk " + mgk;
-                        }
-                        if (mInfoRootImpl != null) {
-                            mInfoRootImpl.setText(root);
                         }
                         if (mHomeMode != null) {
                             String mode;
@@ -1047,21 +991,6 @@ public class MainActivity extends Activity {
                                 mode = "<USER>";
                             }
                             mHomeMode.setText(mode);
-                        }
-
-                        // SELinux
-                        String sel = "未知";
-                        if ("Enforcing".equalsIgnoreCase(se)) {
-                            sel = "强制执行";
-                        } else if ("Permissive".equalsIgnoreCase(se)) {
-                            sel = "宽容模式";
-                        } else if ("Disabled".equalsIgnoreCase(se)) {
-                            sel = "已关闭";
-                        } else if (notEmpty(se)) {
-                            sel = se;
-                        }
-                        if (mInfoSelinux != null) {
-                            mInfoSelinux.setText(sel);
                         }
 
                         // Seccomp
@@ -1501,22 +1430,6 @@ public class MainActivity extends Activity {
                 feedValue.setText(feedLabel());
             }
         });
-        card.addView(lightLine());
-        LinearLayout row4 = updateRow(card, "在线更新页面", "夸克网盘分享（打开浏览器）");
-        TextView openChev = UiConfig.text(this, "›", 18f, 0xFFB6BBC3);
-        LinearLayout.LayoutParams ocp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        ocp.leftMargin = dp(8);
-        row4.addView(openChev, ocp);
-        row4.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                openUpdatePage(DEFAULT_UPDATE_PAGE);
-            }
-        });
-        card.addView(row4);
-        card.addView(lightLine());
-
         feedValue.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
             @Override
             public void onViewAttachedToWindow(View v) {
