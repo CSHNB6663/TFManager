@@ -1153,11 +1153,57 @@ public class MainActivity extends Activity {
         });
     }
 
+    /**
+     * 判断远端版本是否比当前新。
+     *
+     * <p>优先按版本名语义比较（4.0.1 vs 4.0.0），相同再退回 versionCode。
+     * 版本一致时返回 false —— 不弹更新窗。</p>
+     */
     private boolean isNewer(UpdateChecker.Result r) {
+        if (r == null) {
+            return false;
+        }
+        String remote = r.versionName == null ? "" : r.versionName.trim();
+        if (!remote.isEmpty()) {
+            int c = compareVersion(remote, AppVersion.NAME);
+            if (c != 0) {
+                return c > 0;
+            }
+            return false; // 版本名相同 → 视为最新
+        }
         if (r.versionCode > 0) {
             return r.versionCode > AppVersion.CODE;
         }
-        return !r.versionName.equals(AppVersion.NAME);
+        return false;
+    }
+
+    /** 语义化比较：a>b 返回正数，a<b 返回负数，相同返回 0。 */
+    private static int compareVersion(String a, String b) {
+        int[] va = parseVersion(a);
+        int[] vb = parseVersion(b);
+        for (int i = 0; i < 3; i++) {
+            if (va[i] != vb[i]) {
+                return va[i] > vb[i] ? 1 : -1;
+            }
+        }
+        return 0;
+    }
+
+    private static int[] parseVersion(String v) {
+        int[] out = new int[]{0, 0, 0};
+        if (v == null) {
+            return out;
+        }
+        String s = v.trim().replaceFirst("^[vV]", "");
+        String[] parts = s.split("[^0-9]+");
+        for (int i = 0; i < 3 && i < parts.length; i++) {
+            try {
+                out[i] = parts[i].isEmpty() ? 0 : Integer.parseInt(parts[i]);
+            } catch (Throwable ignored) {
+                out[i] = 0;
+            }
+        }
+        return out;
     }
 
     private void manualCheckUpdate() {
