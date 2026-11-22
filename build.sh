@@ -11,7 +11,7 @@
 #   zipalign（apt）                                APK 对齐
 #   apksigner（build-tools lib/apksigner.jar，纯 Java）  v2+v3 签名
 #
-# 产物：dist/RootTerm-3.8.1.apk（包名 com.rootterm.fm，minSdk 26 / targetSdk 37）
+# 产物：dist/RootTerm-3.9.0.apk（包名 com.rootterm.fm，minSdk 26 / targetSdk 37）
 #
 # 用法：
 #   bash build.sh                 # 构建
@@ -27,14 +27,16 @@ JAR36="$SDK/android.jar"      # API 36：javac / aapt2 用
 JAR34="$SDK/android34.jar"    # API 34：aapt1 回退用
 OUT="tools/out"
 DIST="dist"
-APK="$DIST/RootTerm-3.8.1.apk"
+APK="$DIST/RootTerm-3.9.0.apk"
 FORCE_AAPT1=""
+OBFUSCATE=1
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --out) APK="$2"; shift 2 ;;
     --out=*) APK="${1#--out=}"; shift ;;
     --no-aapt2) FORCE_AAPT1=1; shift ;;
+    --no-obfuscate) OBFUSCATE=0; shift ;;
     -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
     *) echo "未知参数: $1" >&2; exit 2 ;;
   esac
@@ -47,7 +49,23 @@ done
   -storetype PKCS12 -storepass android -alias androiddebugkey -keypass android \
   -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
 
-rm -rf "$OUT"; mkdir -p "$OUT/gen" "$OUT/classes" "$OUT/dex" "$DIST"
+rm -rf "$OUT"; mkdir -p "$OUT/gen/com/rootterm/fm" "$OUT/classes" "$OUT/dex" "$DIST"
+
+# ---- 证书指纹（用于运行时签名校验，防重打包）----
+CERT_SHA256="$(keytool -exportcert -keystore tools/debug.keystore -storepass android \
+  -alias androiddebugkey 2>/dev/null | sha256sum | cut -d' ' -f1)"
+[ -n "$CERT_SHA256" ] || CERT_SHA256="unknown"
+cat > "$OUT/gen/com/rootterm/fm/BuildCert.java" <<EOF
+package com.rootterm.fm;
+
+/** 由构建脚本生成：签名证书 SHA-256 指纹。请勿手改。 */
+public final class BuildCert {
+    public static final String SHA256 = "$CERT_SHA256";
+    private BuildCert() {
+    }
+}
+EOF
+echo "== 证书指纹: $CERT_SHA256"
 
 QEMU="/usr/bin/qemu-x86_64-static"
 SYSPREFIX="/opt/x86root"
@@ -84,12 +102,26 @@ fi
 # ---------------------------------------------------------------- 2. Java
 echo "== [2/7] javac（API 36 类库，-source 8 -target 8）"
 javac -source 8 -target 8 -bootclasspath "$JAR36" -encoding UTF-8 -proc:none -nowarn -Xlint:none \
+  -g:none \
   -d "$OUT/classes" $(find app/src/main/java "$OUT/gen" -name '*.java')
 
 # ---------------------------------------------------------------- 3. dex
-echo "== [3/7] d8"
-java -cp "$SDK/d8.jar" com.android.tools.r8.D8 --min-api 26 --lib "$JAR36" \
-  --output "$OUT/dex" $(find "$OUT/classes" -name '*.class')
+if [ "$OBFUSCATE" = "1" ]; then
+  echo "== [3/7] R8（混淆 + 压缩 + 去调试信息）"
+  if ! java -cp "$SDK/d8.jar" com.android.tools.r8.R8 --release --min-api 26 \
+      --lib "$JAR36" --output "$OUT/dex" --pg-conf proguard-rules.pro \
+      $(find "$OUT/classes" -name '*.class') 2>"$OUT/r8.log"; then
+    echo "  R8 失败，回退 d8（不混淆）。日志：$OUT/r8.log"
+    tail -20 "$OUT/r8.log" || true
+    rm -rf "$OUT/dex"; mkdir -p "$OUT/dex"
+    java -cp "$SDK/d8.jar" com.android.tools.r8.D8 --min-api 26 --lib "$JAR36" \
+      --output "$OUT/dex" $(find "$OUT/classes" -name '*.class')
+  fi
+else
+  echo "== [3/7] d8（--no-obfuscate：不混淆）"
+  java -cp "$SDK/d8.jar" com.android.tools.r8.D8 --min-api 26 --lib "$JAR36" \
+    --output "$OUT/dex" $(find "$OUT/classes" -name '*.class')
+fi
 
 # ---------------------------------------------------------------- 4. 打包 dex
 echo "== [4/7] 写入 classes.dex"

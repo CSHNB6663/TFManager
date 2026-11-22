@@ -138,6 +138,23 @@ public class MainActivity extends Activity {
             }
         });
         registerBackCallback();
+        // 安装包签名校验（防重打包）
+        String signErr = SignCheck.verify(this);
+        if (signErr != null) {
+            new AlertDialog.Builder(this, android.R.style.Theme_Material_Light_Dialog_Alert)
+                    .setTitle("无法启动")
+                    .setMessage("安装包校验失败：" + signErr
+                            + "\n\n请从官方渠道重新安装。")
+                    .setCancelable(false)
+                    .setPositiveButton("退出", new android.content.DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(android.content.DialogInterface d, int w) {
+                            finish();
+                        }
+                    })
+                    .show();
+            return;
+        }
         loadDeviceInfo();
         mPages.postDelayed(new Runnable() {
             @Override
