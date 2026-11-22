@@ -88,6 +88,8 @@ public class MainActivity extends Activity {
     private PartitionPanel mPartPanel;
     private android.content.BroadcastReceiver mUsbReceiver;
     private boolean mForceUpdateShown;
+    /** 赞助弹窗本进程只弹一次（启动缓存 + 云端刷新两个入口会各触发一次）。 */
+    private boolean mSponsorShown;
     private long mLastUpdateCheck;
     private FrameLayout mFanqieCard;
     private FanqieWebLogin mFanqieLogin;
@@ -2516,6 +2518,10 @@ public class MainActivity extends Activity {
 
     /** 赞助弹窗：每次进入应用都会弹（远端 sponsor 设为 off 可关闭）。 */
     private void maybeShowSponsor() {
+        if (mSponsorShown) {
+            return;
+        }
+        mSponsorShown = true;
         try {
             String text = RemoteConfig.sponsor();
             if (text == null || text.trim().isEmpty()) {
