@@ -59,8 +59,22 @@ public final class FanqieDownloader {
 
     // ---------------------------------------------------------------- 解析
 
-    /** 从分享链接/纯 ID 里取出书籍 ID。 */
+    /** 从分享链接/纯 ID 里取出书籍 ID（支持番茄短链，必要时联网解析）。 */
     public static String parseBookId(String link) {
+        String id = parseBookIdLocal(link);
+        if (id != null) {
+            return id;
+        }
+        // 短链（changdunovel.com/t/xxx、fqnovel 分享链等）：联网跟随跳转取 book_id
+        try {
+            return resolveShortLink(link);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** 本地规则解析（不联网）。 */
+    private static String parseBookIdLocal(String link) {
         if (link == null) {
             return null;
         }
@@ -83,6 +97,58 @@ public final class FanqieDownloader {
             return m.group(1);
         }
         return null;
+    }
+
+    /** 跟随短链跳转，从最终 URL 或页面内容里找 book_id。 */
+    private static String resolveShortLink(String link) throws Exception {
+        if (link == null || !link.startsWith("http")) {
+            return null;
+        }
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection) new URL(link.trim()).openConnection();
+            conn.setConnectTimeout(TIMEOUT);
+            conn.setReadTimeout(TIMEOUT);
+            conn.setInstanceFollowRedirects(true);
+            conn.setRequestProperty("User-Agent", UA);
+            conn.setRequestProperty("Accept-Language", "zh-CN,zh;q=0.9");
+            int code = conn.getResponseCode();
+            if (code < 200 || code >= 400) {
+                return null;
+            }
+            // 先看最终 URL
+            String finalUrl = conn.getURL() == null ? "" : conn.getURL().toString();
+            Matcher m = Pattern.compile("book_id=(\\d+)").matcher(finalUrl);
+            if (m.find()) {
+                return m.group(1);
+            }
+            m = Pattern.compile("/page/(\\d+)").matcher(finalUrl);
+            if (m.find()) {
+                return m.group(1);
+            }
+            // 再读页面内容
+            InputStream in = conn.getInputStream();
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[16384];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                bos.write(buf, 0, n);
+            }
+            in.close();
+            String body = bos.toString("UTF-8");
+            for (String re : new String[]{"book_id=(\\d+)", "\"bookId\":\"(\\d+)\"",
+                    "/page/(\\d+)", "bookId=(\\d+)"}) {
+                Matcher mm = Pattern.compile(re).matcher(body);
+                if (mm.find()) {
+                    return mm.group(1);
+                }
+            }
+            return null;
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
     }
 
     /** 抓书籍信息（书名 / 作者 / 章节 ID 列表）。 */

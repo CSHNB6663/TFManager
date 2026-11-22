@@ -1932,19 +1932,24 @@ public class MainActivity extends Activity {
     private void showFanqieDialog() {
         final android.widget.EditText linkEt = new android.widget.EditText(this);
         linkEt.setSingleLine(true);
-        linkEt.setHint("https://fanqienovel.com/page/7143038691944959011");
+        linkEt.setHint("粘贴番茄/常读分享链接，如 changdunovel.com/t/xxx");
+        styleInput(linkEt);
 
         final android.widget.EditText numEt = new android.widget.EditText(this);
         numEt.setSingleLine(true);
         numEt.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
         numEt.setText("20");
         numEt.setHint("导出章节数（默认 20）");
+        styleInput(numEt);
 
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
 
         TextView tip = new TextView(this);
-        tip.setText("粘贴番茄小说的书籍链接（形如 /page/数字），导出为 TXT 保存到下载目录。\n\n"
+        tip.setText("支持两种链接：\n"
+                + "· 番茄官网 fanqienovel.com/page/数字\n"
+                + "· 分享短链 changdunovel.com/t/xxx（自动解析）\n"
+                + "导出为 TXT，保存到「下载」目录（/sdcard/Download）。\n\n"
                 + "说明：未登录只能拿到公开的试读片段，且番茄对部分字符做了字体混淆，"
                 + "导出的 TXT 可能缺字或错字；完整内容请在番茄 App 内阅读。"
                 + "本功能仅用于个人备份，请支持正版。");
@@ -2017,6 +2022,20 @@ public class MainActivity extends Activity {
                 })
                 .negative("取消", null)
                 .show();
+    }
+
+    /** 统一样式：黑字、深灰提示、浅底，保证在玻璃弹窗里可读。 */
+    private void styleInput(android.widget.EditText et) {
+        et.setTextColor(0xFF191919);
+        et.setHintTextColor(0xFF9AA0A6);
+        et.setTextSize(13f);
+        et.setPadding(dp(10), dp(8), dp(10), dp(8));
+        android.graphics.drawable.GradientDrawable g =
+                new android.graphics.drawable.GradientDrawable();
+        g.setColor(0xFFF2F4F8);
+        g.setCornerRadius(dp(10));
+        g.setStroke(Math.max(1, dp(0.8f)), 0xFFE3E7EE);
+        et.setBackground(g);
     }
 
     private TextView label2(String t) {
