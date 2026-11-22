@@ -84,6 +84,7 @@ public class MainActivity extends Activity {
     private TextView mHomeBadge;
     private CouiCardView mHomeStatusCard;
     private CouiCardView mHomeStatusBox;
+    private TextView mHomeMode;
     private TextView mInfoKernelFull;
     private TextView mInfoHook;
     private TextView mInfoZygisk;
@@ -636,42 +637,43 @@ public class MainActivity extends Activity {
         mHomeCheckBadge = new CouiCheckBadge(this);
         mHomeCheckBadge.setBadgeColor(0xFF34C759);
         mHomeCheckBadge.setVisibility(View.GONE);
-        FrameLayout.LayoutParams blp = new FrameLayout.LayoutParams(dp(96), dp(96));
+        FrameLayout.LayoutParams blp = new FrameLayout.LayoutParams(dp(112), dp(112));
         blp.gravity = Gravity.END | Gravity.BOTTOM;
-        blp.rightMargin = -dp(14);
-        blp.bottomMargin = -dp(12);
+        blp.rightMargin = -dp(18);
+        blp.bottomMargin = -dp(16);
         leftBox.addView(mHomeCheckBadge, blp);
 
         LinearLayout leftInner = new LinearLayout(this);
         leftInner.setOrientation(LinearLayout.VERTICAL);
-        leftInner.setGravity(Gravity.CENTER);
-        leftInner.setPadding(dp(12), dp(12), dp(12), dp(12));
+        leftInner.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        leftInner.setPadding(dp(14), dp(14), dp(14), dp(14));
         FrameLayout.LayoutParams llp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         llp.gravity = Gravity.CENTER;
         leftBox.addView(leftInner, llp);
 
-        mHomeBadge = UiConfig.badge(this, "…", C_OK, 0x221FA35B);
-        LinearLayout badgeRow = new LinearLayout(this);
-        badgeRow.setOrientation(LinearLayout.HORIZONTAL);
-        badgeRow.setGravity(Gravity.CENTER);
-        badgeRow.addView(mHomeBadge);
-        leftInner.addView(badgeRow, new LinearLayout.LayoutParams(
+        // 三行文字左对齐（仿 KernelSU：工作中 / <LKM> / 版本）
+        mHomeBadge = null;
+
+        mHomeStatus = UiConfig.text(this, "正在探测", 17.5f, C_TEXT);
+        mHomeStatus.setTypeface(mHomeStatus.getTypeface(), android.graphics.Typeface.BOLD);
+        mHomeStatus.setGravity(Gravity.START);
+        leftInner.addView(mHomeStatus, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        mHomeStatus = UiConfig.text(this, "正在探测…", 20f, C_TEXT);
-        mHomeStatus.setTypeface(mHomeStatus.getTypeface(), android.graphics.Typeface.BOLD);
-        mHomeStatus.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams hsp = new LinearLayout.LayoutParams(
+        mHomeMode = UiConfig.text(this, "<LKM>", 15f, C_TEXT);
+        mHomeMode.setTypeface(mHomeMode.getTypeface(), android.graphics.Typeface.BOLD);
+        mHomeMode.setGravity(Gravity.START);
+        LinearLayout.LayoutParams hmp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        hsp.topMargin = dp(6);
-        leftInner.addView(mHomeStatus, hsp);
+        hmp.topMargin = dp(3);
+        leftInner.addView(mHomeMode, hmp);
 
         mHomeSub = UiConfig.text(this, "", 11f, 0xFF5E6A60);
-        mHomeSub.setGravity(Gravity.CENTER);
+        mHomeSub.setGravity(Gravity.START);
         LinearLayout.LayoutParams hsb = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        hsb.topMargin = dp(2);
+        hsb.topMargin = dp(3);
         leftInner.addView(mHomeSub, hsb);
 
         LinearLayout.LayoutParams leftParams = new LinearLayout.LayoutParams(
@@ -1032,6 +1034,19 @@ public class MainActivity extends Activity {
                         }
                         if (mInfoRootImpl != null) {
                             mInfoRootImpl.setText(root);
+                        }
+                        if (mHomeMode != null) {
+                            String mode;
+                            if (root.startsWith("KernelSU")) {
+                                mode = "<KSU>";
+                            } else if (root.startsWith("APatch")) {
+                                mode = "<APATCH>";
+                            } else if (root.startsWith("Magisk")) {
+                                mode = "<MAGISK>";
+                            } else {
+                                mode = "<USER>";
+                            }
+                            mHomeMode.setText(mode);
                         }
 
                         // SELinux
@@ -1723,9 +1738,7 @@ public class MainActivity extends Activity {
             mHomeCheckBadge.setVisibility(root ? View.VISIBLE : View.GONE);
         }
         if (mHomeSub != null) {
-            mHomeSub.setText(root
-                    ? "身份: root · " + Shell.suPath() + "  ·  v2.1.6"
-                    : "身份: shell · 仅 app 权限  ·  v2.1.6");
+            mHomeSub.setText("版本: " + AppVersion.NAME);
         }
     }
 
