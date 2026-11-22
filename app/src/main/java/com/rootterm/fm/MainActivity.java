@@ -620,9 +620,11 @@ public class MainActivity extends Activity {
         statusCard.setCardBorderColor(0x141FA35B);
         mHomeStatusCard = statusCard;
 
+        // 横向布局：左边「工作中」方框，右边终端入口
         LinearLayout status = new LinearLayout(this);
-        status.setOrientation(LinearLayout.VERTICAL);
-        status.setPadding(dp(18), dp(16), dp(18), dp(16));
+        status.setOrientation(LinearLayout.HORIZONTAL);
+        status.setGravity(Gravity.CENTER_VERTICAL);
+        status.setPadding(dp(14), dp(14), dp(14), dp(14));
         statusCard.addView(status, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -630,35 +632,98 @@ public class MainActivity extends Activity {
         mHomeCheckBadge = new CouiCheckBadge(this);
         mHomeCheckBadge.setBadgeColor(0xFF34C759);
         mHomeCheckBadge.setVisibility(View.GONE);
-        FrameLayout.LayoutParams blp = new FrameLayout.LayoutParams(dp(132), dp(132));
+        FrameLayout.LayoutParams blp = new FrameLayout.LayoutParams(dp(110), dp(110));
         blp.gravity = Gravity.END | Gravity.BOTTOM;
-        blp.rightMargin = -dp(22);
-        blp.bottomMargin = -dp(18);
+        blp.rightMargin = -dp(18);
+        blp.bottomMargin = -dp(14);
         statusCard.addView(mHomeCheckBadge, blp);
+
+        // ---------- 左：状态方框 ----------
+        LinearLayout statusBox = new LinearLayout(this);
+        statusBox.setOrientation(LinearLayout.VERTICAL);
+        statusBox.setGravity(Gravity.CENTER);
+        statusBox.setPadding(dp(14), dp(14), dp(14), dp(14));
+        statusBox.setMinimumWidth(dp(96));
+        android.graphics.drawable.GradientDrawable boxBg =
+                new android.graphics.drawable.GradientDrawable();
+        boxBg.setColor(0xFFFFFFFF);
+        boxBg.setCornerRadius(dp(14));
+        statusBox.setBackground(boxBg);
+        status.addView(statusBox, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        mHomeBadge = UiConfig.badge(this, "…", C_OK, 0x221FA35B);
+        LinearLayout badgeRow = new LinearLayout(this);
+        badgeRow.setOrientation(LinearLayout.HORIZONTAL);
+        badgeRow.setGravity(Gravity.CENTER);
+        badgeRow.addView(mHomeBadge);
+        statusBox.addView(badgeRow, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        mHomeStatus = UiConfig.text(this, "正在探测…", 18f, C_TEXT);
+        mHomeStatus.setTypeface(mHomeStatus.getTypeface(), android.graphics.Typeface.BOLD);
+        mHomeStatus.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams hsp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        hsp.topMargin = dp(6);
+        statusBox.addView(mHomeStatus, hsp);
+
+        mHomeSub = UiConfig.text(this, "", 11f, 0xFF5E6A60);
+        mHomeSub.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams hsb = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        hsb.topMargin = dp(2);
+        statusBox.addView(mHomeSub, hsb);
+
+        // ---------- 右：终端入口 ----------
+        LinearLayout termEntry = new LinearLayout(this);
+        termEntry.setOrientation(LinearLayout.VERTICAL);
+        termEntry.setGravity(Gravity.CENTER);
+        termEntry.setPadding(dp(12), dp(12), dp(12), dp(12));
+        termEntry.setClickable(true);
+        android.graphics.drawable.GradientDrawable termBg =
+                new android.graphics.drawable.GradientDrawable();
+        termBg.setColor(C_ACCENT);
+        termBg.setCornerRadius(dp(14));
+        termEntry.setBackground(termBg);
+        termEntry.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showTerminal(true);
+            }
+        });
+
+        ImageView termIcon = new ImageView(this);
+        int termRes = getResources().getIdentifier("ic_nav_terminal", "drawable", getPackageName());
+        if (termRes != 0) {
+            termIcon.setImageResource(termRes);
+            termIcon.setColorFilter(ThemeColors.ON_ACCENT);
+        }
+        termEntry.addView(termIcon, new LinearLayout.LayoutParams(dp(26), dp(26)));
+
+        TextView termLabel = UiConfig.text(this, "终端", 14f, ThemeColors.ON_ACCENT);
+        termLabel.setTypeface(termLabel.getTypeface(), android.graphics.Typeface.BOLD);
+        termLabel.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tlp.topMargin = dp(4);
+        termEntry.addView(termLabel, tlp);
+
+        TextView termSub = UiConfig.text(this, "打开", 10.5f, ThemeColors.ON_ACCENT);
+        termSub.setAlpha(0.8f);
+        termSub.setGravity(Gravity.CENTER);
+        termEntry.addView(termSub);
+
+        LinearLayout.LayoutParams termParams = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.MATCH_PARENT);
+        termParams.weight = 1f;
+        termParams.leftMargin = dp(14);
+        status.addView(termEntry, termParams);
 
         LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         slp.topMargin = dp(18);
         page.addView(statusCard, slp);
-
-        mHomeBadge = UiConfig.badge(this, "…", C_OK, 0x221FA35B);
-        LinearLayout badgeRow = new LinearLayout(this);
-        badgeRow.setOrientation(LinearLayout.HORIZONTAL);
-        badgeRow.addView(mHomeBadge);
-        status.addView(badgeRow);
-
-        mHomeStatus = UiConfig.text(this, "正在探测 root…", 26f, C_TEXT);
-        mHomeStatus.setTypeface(mHomeStatus.getTypeface(), android.graphics.Typeface.BOLD);
-        LinearLayout.LayoutParams hsp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        hsp.topMargin = dp(10);
-        status.addView(mHomeStatus, hsp);
-
-        mHomeSub = UiConfig.text(this, "", 11.5f, 0xFF5E6A60);
-        LinearLayout.LayoutParams hsb = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        hsb.topMargin = dp(4);
-        status.addView(mHomeSub, hsb);
 
         // 两张小卡：总存储 / 运行内存
         LinearLayout cards = new LinearLayout(this);
@@ -1638,6 +1703,16 @@ public class MainActivity extends Activity {
         if (mHomeStatusCard != null) {
             mHomeStatusCard.setCardBackgroundColor(root ? C_OK_BG : 0xFFF2F3F5);
             mHomeStatusCard.setCardBorderColor(root ? 0x141FA35B : 0xFFEDEFF2);
+        }
+        // 状态方框背景也随 root 状态切换（白底或浅灰底）
+        LinearLayout statusRoot = mHomeStatusCard != null
+                ? (LinearLayout) mHomeStatusCard.getChildAt(1) : null;
+        if (statusRoot != null && statusRoot.getChildCount() > 0) {
+            View box = statusRoot.getChildAt(0);
+            if (box != null && box.getBackground() instanceof android.graphics.drawable.GradientDrawable) {
+                ((android.graphics.drawable.GradientDrawable) box.getBackground())
+                        .setColor(root ? 0xFFFFFFFF : 0xFFEDEFF2);
+            }
         }
         if (mHomeCheckBadge != null) {
             mHomeCheckBadge.setVisibility(root ? View.VISIBLE : View.GONE);
