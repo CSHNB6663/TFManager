@@ -637,19 +637,19 @@ public class MainActivity extends Activity {
         mHomeCheckBadge = new CouiCheckBadge(this);
         mHomeCheckBadge.setBadgeColor(0xFF34C759);
         mHomeCheckBadge.setVisibility(View.GONE);
-        FrameLayout.LayoutParams blp = new FrameLayout.LayoutParams(dp(112), dp(112));
+        FrameLayout.LayoutParams blp = new FrameLayout.LayoutParams(dp(84), dp(84));
         blp.gravity = Gravity.END | Gravity.BOTTOM;
-        blp.rightMargin = -dp(18);
-        blp.bottomMargin = -dp(16);
+        blp.rightMargin = dp(4);
+        blp.bottomMargin = dp(4);
         leftBox.addView(mHomeCheckBadge, blp);
 
         LinearLayout leftInner = new LinearLayout(this);
         leftInner.setOrientation(LinearLayout.VERTICAL);
-        leftInner.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        leftInner.setPadding(dp(14), dp(14), dp(14), dp(14));
+        leftInner.setGravity(Gravity.TOP | Gravity.START);
+        leftInner.setPadding(dp(14), dp(12), dp(14), dp(10));
         FrameLayout.LayoutParams llp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-        llp.gravity = Gravity.CENTER;
+        llp.gravity = Gravity.TOP | Gravity.START;
         leftBox.addView(leftInner, llp);
 
         // 三行文字左对齐（仿 KernelSU：工作中 / <LKM> / 版本）
@@ -666,14 +666,14 @@ public class MainActivity extends Activity {
         mHomeMode.setGravity(Gravity.START);
         LinearLayout.LayoutParams hmp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        hmp.topMargin = dp(3);
+        hmp.topMargin = dp(2);
         leftInner.addView(mHomeMode, hmp);
 
         mHomeSub = UiConfig.text(this, "", 11f, 0xFF5E6A60);
         mHomeSub.setGravity(Gravity.START);
         LinearLayout.LayoutParams hsb = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        hsb.topMargin = dp(3);
+        hsb.topMargin = dp(2);
         leftInner.addView(mHomeSub, hsb);
 
         LinearLayout.LayoutParams leftParams = new LinearLayout.LayoutParams(
