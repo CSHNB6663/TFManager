@@ -1726,8 +1726,8 @@ public class MainActivity extends Activity {
         // ---------------- 运行方式 ----------------
         page.addView(gap(14));
         MiuixPreference.Group runMode = MiuixPreference.group(this, "脚本运行");
-        runMode.switchRow("兼容模式（推荐）",
-                "不注入环境变量、用系统 sh，与常见终端一致；个别加载器仍需关闭",
+        runMode.switchRow("兼容模式（默认开启）",
+                "不注入环境变量、用系统 sh，与常见终端一致；若个别脚本需要 bash 特性可关闭",
                 UiConfig.compatMode(this), new MiuixPreference.OnSwitch() {
                     @Override
                     public void onChanged(boolean checked) {

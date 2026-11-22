@@ -30,10 +30,10 @@ public final class UiConfig {
     private UiConfig() {
     }
 
-    /** 脚本运行兼容模式：不注入 LD_LIBRARY_PATH/TMPDIR，用系统 sh。 */
+    /** 脚本运行兼容模式：不注入 LD_LIBRARY_PATH/TMPDIR，用系统 sh。默认开启。 */
     public static boolean compatMode(Context c) {
         return c.getSharedPreferences("ui", Context.MODE_PRIVATE)
-                .getBoolean("run_compat", false);
+                .getBoolean("run_compat", true);
     }
 
     public static void setCompatMode(Context c, boolean on) {
