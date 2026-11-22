@@ -82,6 +82,8 @@ public class TerminalPanel extends LinearLayout {
 
     /** 命令执行中（含 cd 校验中）。 */
     private boolean running = false;
+    /** 防抖：同一次回车可能被 editorAction 与 keyListener 同时触发。 */
+    private long lastSubmitAt;
     /** 当前交互式会话（stdin 由终端输入行接管），null 表示普通一次性命令。 */
     private Interactive mInteractive;
     /** root 探测中。 */
@@ -409,7 +411,9 @@ public class TerminalPanel extends LinearLayout {
                         return true;
                     }
                     if (keyCode == KeyEvent.KEYCODE_ENTER) {
-                        submit();
+                        if (event.getRepeatCount() == 0) {
+                            submit();
+                        }
                         return true;
                     }
                 }
@@ -728,6 +732,13 @@ public class TerminalPanel extends LinearLayout {
         if (inputView == null) {
             return;
         }
+        // 防重复：IME 的「发送」键会同时触发 OnEditorAction 与 OnKey(ENTER)，
+        // 不加防抖会导致同一条命令执行两次。
+        long now = android.os.SystemClock.uptimeMillis();
+        if (now - lastSubmitAt < 350) {
+            return;
+        }
+        lastSubmitAt = now;
         // 交互式会话：把输入写入程序 stdin 而不是当命令解析
         if (mInteractive != null) {
             String line = inputView.getText().toString();
