@@ -63,7 +63,7 @@ public class SafPanel extends LinearLayout {
         View header = buildHeader();
         LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        hlp.topMargin = dp(10);
+        hlp.topMargin = dp(8);
         hlp.bottomMargin = dp(2);
         addView(header, hlp);
 
@@ -122,7 +122,7 @@ public class SafPanel extends LinearLayout {
         ScrollView sv = new ScrollView(activity);
         listBox = new LinearLayout(activity);
         listBox.setOrientation(VERTICAL);
-        listBox.setPadding(dp(14), dp(6), dp(14), dp(160));
+        listBox.setPadding(dp(14), dp(6), dp(14), dp(18));
         sv.addView(listBox, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         addView(sv, new LinearLayout.LayoutParams(
@@ -146,7 +146,7 @@ public class SafPanel extends LinearLayout {
         }
         back.setClickable(true);
         back.setPadding(dp(8), dp(8), dp(8), dp(8));
-        back.setBackground(round(0x66FFFFFF, 14, 0xFFE3E7EE));
+        back.setBackground(round(0xFFF2F4F8, 14, 0xFFE3E7EE));
         header.addView(back, new LinearLayout.LayoutParams(dp(38), dp(38)));
         back.setOnClickListener(new OnClickListener() {
             @Override
@@ -322,7 +322,7 @@ public class SafPanel extends LinearLayout {
         }
         LinearLayout card = new LinearLayout(act);
         card.setOrientation(VERTICAL);
-        card.setBackground(round(0xF2FFFFFF, 18, 0xFFE3E7EE));
+        card.setBackground(round(0xFFFFFFFF, 18, 0xFFEDEFF2));
         listBox.addView(card, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -609,7 +609,7 @@ public class SafPanel extends LinearLayout {
         TextView tv = UiConfig.text(act, text, 12.5f, C_TEXT);
         tv.setTypeface(null, android.graphics.Typeface.BOLD);
         tv.setPadding(dp(14), dp(8), dp(14), dp(8));
-        tv.setBackground(round(0xF2FFFFFF, 15, 0xFFE3E7EE));
+        tv.setBackground(round(0xFFF2F4F8, 15, 0xFFE3E7EE));
         tv.setClickable(true);
         return tv;
     }

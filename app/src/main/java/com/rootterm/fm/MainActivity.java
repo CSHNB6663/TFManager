@@ -92,8 +92,8 @@ public class MainActivity extends Activity {
     private LinearLayout mTermCard;
     private TerminalPanel mTerminal;
     private boolean mTermVisible;
-    private FrameLayout mSafCard;
     private SafPanel mSaf;
+    private android.app.Dialog mSafDialog;
 
     private TextView mHomeBadge;
     private MiuixCard mHomeStatusCard;
@@ -298,7 +298,7 @@ public class MainActivity extends Activity {
             @Override
             public void onSwipe(int direction) {
                 if (mTermVisible
-                        || (mSafCard != null && mSafCard.getVisibility() == View.VISIBLE)) {
+                        || (mSafDialog != null && mSafDialog.isShowing())) {
                     return;
                 }
                 int next = mTab + direction;
@@ -335,21 +335,7 @@ public class MainActivity extends Activity {
         mPages.addView(mTermCard, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        // 免 root 目录（SAF）
-        mSafCard = new FrameLayout(this);
-        mSafCard.setBackgroundColor(0x00000000);
-        mSafCard.setVisibility(View.GONE);
-        mSaf = new SafPanel(this);
-        mSaf.setOnBack(new Runnable() {
-            @Override
-            public void run() {
-                showSaf(false);
-            }
-        });
-        mSafCard.addView(mSaf, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        mPages.addView(mSafCard, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        // 免 root 目录（SAF）：改为白色弹窗，见 showSaf()
 
         // 番茄登录浮层（挂在 mPages 之外，避免切页手势抢走滑块拖动）
         mFanqieCard = new FrameLayout(this);
@@ -573,7 +559,6 @@ public class MainActivity extends Activity {
         mPages.addView(mFilesCard, lp);
 
         // 终端 / SAF 覆盖层保持最上层
-        mPages.bringChildToFront(mSafCard);
         mPages.bringChildToFront(mTermCard);
     }
 
@@ -1638,13 +1623,65 @@ public class MainActivity extends Activity {
         return card;
     }
 
+    /** 免 root 目录：白色背景弹窗。 */
     private void showSaf(boolean show) {
-        mSaf.setVisibility(show ? View.VISIBLE : View.GONE);
-        mSafCard.setVisibility(show ? View.VISIBLE : View.GONE);
-        if (show) {
-            mSafCard.bringToFront();
-            mSaf.bringToFront();
+        if (!show) {
+            if (mSafDialog != null) {
+                mSafDialog.dismiss();
+                mSafDialog = null;
+            }
+            return;
         }
+        if (mSafDialog != null && mSafDialog.isShowing()) {
+            return;
+        }
+        if (mSaf == null) {
+            mSaf = new SafPanel(this);
+            mSaf.setOnBack(new Runnable() {
+                @Override
+                public void run() {
+                    showSaf(false);
+                }
+            });
+        }
+        // 从旧父容器摘下来
+        if (mSaf.getParent() instanceof ViewGroup) {
+            ((ViewGroup) mSaf.getParent()).removeView(mSaf);
+        }
+
+        android.app.Dialog d = new android.app.Dialog(this);
+        d.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+
+        FrameLayout shell = new FrameLayout(this);
+        android.graphics.drawable.GradientDrawable bg =
+                new android.graphics.drawable.GradientDrawable();
+        bg.setColor(0xFFFFFFFF);                 // 纯白背景
+        bg.setCornerRadius(dp(20));
+        shell.setBackground(bg);
+        shell.setClipToOutline(true);
+        shell.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override
+            public void getOutline(View v, android.graphics.Outline o) {
+                o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), dp(20));
+            }
+        });
+        shell.addView(mSaf, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        d.setContentView(shell);
+
+        android.view.Window w = d.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0x00000000));
+            w.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            android.view.WindowManager.LayoutParams lp = w.getAttributes();
+            lp.width = (int) (getResources().getDisplayMetrics().widthPixels * 0.92f);
+            lp.height = (int) (getResources().getDisplayMetrics().heightPixels * 0.78f);
+            lp.dimAmount = 0.30f;
+            lp.gravity = Gravity.CENTER;
+            w.setAttributes(lp);
+        }
+        d.show();
+        mSafDialog = d;
     }
 
     @Override
@@ -1772,7 +1809,7 @@ public class MainActivity extends Activity {
             closeFanqieLogin();
             return;
         }
-        if (mSafCard != null && mSafCard.getVisibility() == View.VISIBLE) {
+        if (mSafDialog != null && mSafDialog.isShowing()) {
             if (mSaf != null && mSaf.goUp()) {
                 return;
             }

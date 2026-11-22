@@ -2,7 +2,6 @@ package com.miuix.nav;
 
 import android.animation.ValueAnimator;
 import android.content.Context;
-import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -13,17 +12,23 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.miuix.glass.MiuixGlass;
-import com.miuix.squircle.Squircle;
+import com.miuix.material.MiuixMaterial;
 import com.miuix.ui.MiuixTheme;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * miuix-nav：底部玻璃导航条。
+ * miuix-nav：底部液态玻璃导航条。
  *
- * <p>Miuix 风格：居中胶囊、液态玻璃材质、选中项下方/背后有滑动的超椭圆指示块。
- * 支持点击切换与「按住左右拖动、松手停在哪就切到哪」。</p>
+ * <p>对应上游 {@code miuix-nav} 模块，本实现完全建立在 {@code miuix-glass} 上：</p>
+ * <ul>
+ *   <li>整条胶囊是一块 {@link MiuixGlass#pill} 液态玻璃（磨砂底 + 折射 + 镜面 + 棱边）；</li>
+ *   <li>选中指示块也是一块玻璃：超椭圆连续圆角、主色染色、独立镜面光带；</li>
+ *   <li>图标由 {@code miuix-icons} 提供，选中态用主色；</li>
+ *   <li>支持点击切换与「按住左右拖动、松手停在哪就切到哪」；</li>
+ *   <li>{@link #autoBackdrop(View)} 让玻璃持续跟随背后页面内容。</li>
+ * </ul>
  */
 public class MiuixNavBar extends FrameLayout {
 
@@ -44,7 +49,7 @@ public class MiuixNavBar extends FrameLayout {
     private final MiuixGlass mPill;
     private final FrameLayout mInner;
     private final LinearLayout mRow;
-    private final View mIndicator;
+    private final MiuixGlass mIndicator;
 
     private Listener mListener;
     private int mSelected;
@@ -62,6 +67,7 @@ public class MiuixNavBar extends FrameLayout {
         mActiveColor = MiuixTheme.primary();
         mInactiveColor = 0xFF3A3F45;
 
+        // 胶囊本体：液态玻璃
         mPill = MiuixGlass.pill(c);
         mPill.paddingDp(8, 7, 8, 7);
         FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(
@@ -69,11 +75,24 @@ public class MiuixNavBar extends FrameLayout {
         addView(mPill, plp);
 
         mInner = new FrameLayout(c);
+        mInner.setClipChildren(false);
         mPill.addView(mInner, new FrameLayout.LayoutParams(
                 LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
 
-        mIndicator = new View(c);
+        // 选中指示块：一块独立的液态玻璃（连续圆角）
+        mIndicator = MiuixGlass.pill(c);
+        mIndicator.specular(true);
+        MiuixMaterial im = MiuixMaterial.preset(c, MiuixMaterial.Preset.CLEAR);
+        im.tintTop = MiuixMaterial.withAlpha(mIndicatorColor, 0xE6);
+        im.tintBottom = MiuixMaterial.withAlpha(mIndicatorColor, 0xC8);
+        im.rimLight = 0xCCFFFFFF;
+        im.rimDark = 0x1A3482FF;
+        im.specular = 0x4DFFFFFF;
+        im.thicknessDp = 1f;
+        mIndicator.material(im);
         mIndicator.setVisibility(View.INVISIBLE);
+        mIndicator.setClickable(false);
+        mIndicator.setFocusable(false);
         mInner.addView(mIndicator, new FrameLayout.LayoutParams(0, 0));
 
         mRow = new LinearLayout(c);
@@ -88,6 +107,11 @@ public class MiuixNavBar extends FrameLayout {
         mPill.captureBackdrop(src);
     }
 
+    /** 自动磨砂：玻璃持续跟随背后页面。 */
+    public void autoBackdrop(View behind) {
+        mPill.autoBackdrop(behind);
+    }
+
     public MiuixNavBar listener(Listener l) {
         mListener = l;
         return this;
@@ -97,8 +121,17 @@ public class MiuixNavBar extends FrameLayout {
         mIndicatorColor = indicator;
         mActiveColor = active;
         mInactiveColor = inactive;
+        MiuixMaterial im = mIndicator.material();
+        im.tintTop = MiuixMaterial.withAlpha(indicator, 0xE6);
+        im.tintBottom = MiuixMaterial.withAlpha(indicator, 0xC8);
+        mIndicator.material(im);
         styleAll();
         return this;
+    }
+
+    /** 暴露玻璃本体，供外部（如主界面）挂模糊/动画。 */
+    public MiuixGlass glass() {
+        return mPill;
     }
 
     /** 添加一个导航项。 */
@@ -228,11 +261,9 @@ public class MiuixNavBar extends FrameLayout {
         lp.leftMargin = l;
         lp.topMargin = t;
         mIndicator.setLayoutParams(lp);
-
-        GradientDrawable g = new GradientDrawable();
-        g.setColor(mIndicatorColor);
-        g.setCornerRadius(MiuixTheme.dp(getContext(), 22));
-        mIndicator.setBackground(g);
+        // 连续圆角半径跟着高度走，保持胶囊/超椭圆观感
+        float density = getContext().getResources().getDisplayMetrics().density;
+        mIndicator.radiusDp(Math.min(lp.height / 2f / density, 24f));
     }
 
     // ---------------------------------------------------------------- 样式
@@ -244,11 +275,13 @@ public class MiuixNavBar extends FrameLayout {
             int color = active ? mActiveColor : mInactiveColor;
             if (it.icon != null) {
                 it.icon.setColorFilter(color);
+                it.icon.setAlpha(active ? 1f : 0.72f);
             }
             if (it.label != null) {
                 it.label.setTextColor(color);
                 it.label.setTypeface(null, active
                         ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+                it.label.setAlpha(active ? 1f : 0.78f);
             }
         }
     }
@@ -293,7 +326,6 @@ public class MiuixNavBar extends FrameLayout {
                             int idx = indexAt(e.getX());
                             if (idx >= 0 && idx != mPreview) {
                                 mPreview = idx;
-                                // 预览：指示块跟着走
                                 int save = mSelected;
                                 mSelected = idx;
                                 styleAll();

@@ -1,102 +1,60 @@
 package com.miuix.ui;
 
 import android.content.Context;
-import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.drawable.GradientDrawable;
-import android.widget.FrameLayout;
 
-import com.miuix.squircle.Squircle;
+import com.miuix.glass.MiuixGlass;
+import com.miuix.material.MiuixMaterial;
 
 /**
- * miuix-ui：卡片（超椭圆圆角表面）。
+ * miuix-ui：基础卡片 / Surface。
  *
- * <p>对应 Miuix 的 {@code Card} / {@code Surface}：连续圆角、可选描边、可选内嵌底色。
- * 子 View 会被裁剪到超椭圆内。</p>
+ * <p>上游里 {@code miuix-ui} 是基础组件层，{@code miuix-glass} 提供玻璃表面。
+ * 这里让 Card 直接建立在 {@link MiuixGlass} 之上：所有卡片默认就是一块清透
+ * 液态玻璃（磨砂底 + 折射 + 镜面 + 超椭圆棱边），而不是旧的纯色圆角矩形。</p>
+ *
+ * <p>为兼容既有调用，保留 {@link #fill(int)} / {@link #stroke(int, float)} /
+ * {@link #radiusDp(float)}：{@code fill} 现在会把颜色转成玻璃染色，
+ * {@code stroke} 转成玻璃棱边颜色。</p>
  */
-public class MiuixCard extends FrameLayout {
-
-    private final Paint mFill = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint mStroke = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private Path mPath;
-
-    private float mRadiusPx;
-    private int mFillColor = MiuixTheme.surface();
-    private int mStrokeColor;
-    private float mStrokeWidth;
+public class MiuixCard extends MiuixGlass {
 
     public MiuixCard(Context c) {
         super(c);
-        setWillNotDraw(false);
-        mRadiusPx = MiuixTheme.dp(c, MiuixTheme.RADIUS_CARD);
-        mFill.setStyle(Paint.Style.FILL);
-        mStroke.setStyle(Paint.Style.STROKE);
-        applyClip();
+        material(MiuixMaterial.Preset.CLEAR);
     }
 
-    /** 圆角（dp）。 */
+    /** 圆角（dp）——委托给玻璃的超椭圆半径。 */
+    @Override
     public MiuixCard radiusDp(float dp) {
-        mRadiusPx = MiuixTheme.dp(getContext(), dp);
-        applyClip();
-        invalidate();
+        super.radiusDp(dp);
         return this;
     }
 
+    /** 卡面染色：把纯色转成上下一致的半透明玻璃色。 */
     public MiuixCard fill(int color) {
-        mFillColor = color;
-        invalidate();
+        int top = MiuixMaterial.withAlpha(color, 0xEC);
+        int bottom = MiuixMaterial.withAlpha(MiuixMaterial.shade(color, -0.03f), 0xDA);
+        tint(top, bottom);
         return this;
     }
 
+    /** 描边 → 玻璃棱边。 */
     public MiuixCard stroke(int color, float widthDp) {
-        mStrokeColor = color;
-        mStrokeWidth = MiuixTheme.dp(getContext(), widthDp);
+        rim(MiuixMaterial.withAlpha(0xFFFFFF, 0xB3),
+                MiuixMaterial.withAlpha(color, 0x40));
+        material().thicknessDp = Math.max(0.8f, widthDp);
         invalidate();
         return this;
     }
 
+    @Override
     public MiuixCard paddingDp(int l, int t, int r, int b) {
-        setPadding(MiuixTheme.dp(getContext(), l), MiuixTheme.dp(getContext(), t),
-                MiuixTheme.dp(getContext(), r), MiuixTheme.dp(getContext(), b));
+        super.paddingDp(l, t, r, b);
         return this;
     }
 
-    private void applyClip() {
-        Squircle.clipChildren(this, mRadiusPx);
-    }
-
-    @Override
-    protected void onSizeChanged(int w, int h, int ow, int oh) {
-        super.onSizeChanged(w, h, ow, oh);
-        mPath = Squircle.path(w, h, mRadiusPx);
-        invalidateOutline();
-    }
-
-    @Override
-    protected void onDraw(Canvas canvas) {
-        if (mPath == null) {
-            mPath = Squircle.path(getWidth(), getHeight(), mRadiusPx);
-        }
-        mFill.setColor(mFillColor);
-        canvas.drawPath(mPath, mFill);
-
-        if (mStrokeWidth > 0) {
-            mStroke.setColor(mStrokeColor);
-            mStroke.setStrokeWidth(mStrokeWidth);
-            float inset = mStrokeWidth / 2f;
-            canvas.save();
-            canvas.translate(inset, inset);
-            canvas.drawPath(Squircle.path(getWidth() - mStrokeWidth,
-                    getHeight() - mStrokeWidth, mRadiusPx - inset), mStroke);
-            canvas.restore();
-        }
-        super.onDraw(canvas);
-    }
-
-    // ---------------------------------------------------------------- 便捷构造
-
-    /** 生成一个默认卡片（白底 + 细描边 + 20dp 圆角 + 内边距）。 */
+    /** 生成一个默认液态玻璃卡片。 */
     public static MiuixCard create(Context c) {
         MiuixCard card = new MiuixCard(c);
         card.fill(MiuixTheme.surface());
@@ -106,18 +64,21 @@ public class MiuixCard extends FrameLayout {
         return card;
     }
 
-    /** 无描边的纯色块（用于分组内部）。 */
+    /** 无棱边的纯色玻璃块（用于分组内部）。 */
     public static MiuixCard plain(Context c, int color, float radiusDp) {
         MiuixCard card = new MiuixCard(c);
         card.fill(color);
         card.radiusDp(radiusDp);
+        card.rimEnabled(false);
+        card.specular(false);
         return card;
     }
 
-    /** 旧代码兼容：把 GradientDrawable 背景转成超椭圆填充。 */
+    /** 旧代码兼容：把 GradientDrawable 背景转成超椭圆玻璃填充。 */
+    @SuppressWarnings("deprecation")
     public void setSquircleBackground(int color, float radiusDp) {
         fill(color);
         radiusDp(radiusDp);
-        setBackground((GradientDrawable) null);
+        setBackgroundDrawable(null);
     }
 }

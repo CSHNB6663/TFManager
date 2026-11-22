@@ -9,13 +9,23 @@ import android.widget.LinearLayout;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import com.miuix.glass.MiuixGlass;
+import com.miuix.glassicons.MiuixGlassIcons;
+import com.miuix.icons.MiuixIcons;
 import com.miuix.ui.MiuixCard;
 import com.miuix.ui.MiuixTheme;
 
 /**
  * miuix-preference：设置项。
  *
- * <p>对应 Miuix 的 {@code Preference} 系列组件。用法：</p>
+ * <p>对应上游 {@code miuix-preference} 模块的 {@code Preference} 系列组件。
+ * 这版全部建立在 {@link com.miuix.glass.MiuixGlass} 液态玻璃上：</p>
+ * <ul>
+ *   <li>分组卡片 = 一块清透玻璃（磨砂 + 折射 + 镜面 + 超椭圆棱边）；</li>
+ *   <li>前置图标 = {@code miuix-glass-icons} 的玻璃图标块；</li>
+ *   <li>分组标题、分隔线、开关、右值都按玻璃层次重新着色。</li>
+ * </ul>
+ *
  * <pre>
  * MiuixPreference.Group g = MiuixPreference.group(ctx, "更新");
  * g.switchRow("自动检查更新", "启动时查询", true, listener);
@@ -38,7 +48,7 @@ public final class MiuixPreference {
     private MiuixPreference() {
     }
 
-    /** 新建一个分组（标题 + 卡片）。 */
+    /** 新建一个分组（标题 + 液态玻璃卡片）。 */
     public static Group group(Context c, String title) {
         return new Group(c, title);
     }
@@ -64,17 +74,20 @@ public final class MiuixPreference {
                 tv.setText(t);
                 tv.setTextSize(12.5f);
                 tv.setTextColor(MiuixTheme.onSurfaceVariant());
-                tv.setPadding(MiuixTheme.dp(c, 6), MiuixTheme.dp(c, 2),
-                        MiuixTheme.dp(c, 6), MiuixTheme.dp(c, 7));
+                tv.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                tv.setPadding(MiuixTheme.dp(c, 8), MiuixTheme.dp(c, 2),
+                        MiuixTheme.dp(c, 8), MiuixTheme.dp(c, 7));
                 root.addView(tv, new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT));
             }
 
+            // 分组本体：miuix-glass 清透液态玻璃卡片
             card = new MiuixCard(c);
             card.fill(MiuixTheme.surface());
             card.stroke(MiuixTheme.outline(), 0.8f);
             card.radiusDp(MiuixTheme.RADIUS_CARD);
+            card.specular(true);
 
             rows = new LinearLayout(c);
             rows.setOrientation(LinearLayout.VERTICAL);
@@ -117,27 +130,9 @@ public final class MiuixPreference {
                               final OnClick cb) {
             LinearLayout row = baseRow(title, summary, 0);
             if (value != null && !value.isEmpty()) {
-                TextView v = new TextView(ctx);
-                v.setText(value);
-                v.setTextSize(MiuixTheme.TEXT_LABEL);
-                v.setTextColor(MiuixTheme.onSurfaceVariant());
-                v.setSingleLine(true);
-                LinearLayout.LayoutParams vp = new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT);
-                vp.leftMargin = MiuixTheme.dp(ctx, 8);
-                row.addView(v, vp);
+                row.addView(valueText(value));
             }
-            TextView chev = new TextView(ctx);
-            chev.setText("›");
-            chev.setTextSize(18f);
-            chev.setTextColor(0xFFB6BBC3);
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT);
-            cp.leftMargin = MiuixTheme.dp(ctx, 6);
-            row.addView(chev, cp);
-
+            row.addView(chevron());
             row.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -150,33 +145,14 @@ public final class MiuixPreference {
             return this;
         }
 
-        /** 带前置图标的点击行。 */
+        /** 带 {@code miuix-glass-icons} 玻璃图标的点击行。 */
         public Group iconClickRow(int iconRes, int iconTint, String title, String summary,
                                   String value, final OnClick cb) {
-            LinearLayout row = baseRow(title, summary, iconRes);
-            if (iconRes != 0) {
-                ImageView iv = (ImageView) row.getChildAt(0);
-                if (iconTint != 0) {
-                    iv.setColorFilter(iconTint);
-                }
-            }
+            LinearLayout row = baseRow(title, summary, iconRes, iconTint);
             if (value != null && !value.isEmpty()) {
-                TextView v = new TextView(ctx);
-                v.setText(value);
-                v.setTextSize(MiuixTheme.TEXT_LABEL);
-                v.setTextColor(MiuixTheme.onSurfaceVariant());
-                row.addView(v);
+                row.addView(valueText(value));
             }
-            TextView chev = new TextView(ctx);
-            chev.setText("›");
-            chev.setTextSize(18f);
-            chev.setTextColor(0xFFB6BBC3);
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT);
-            cp.leftMargin = MiuixTheme.dp(ctx, 6);
-            row.addView(chev, cp);
-
+            row.addView(chevron());
             row.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -253,7 +229,7 @@ public final class MiuixPreference {
             return this;
         }
 
-        /** 生成最终 View（标题 + 卡片）。 */
+        /** 生成最终 View（标题 + 玻璃卡片）。 */
         public View build() {
             return root;
         }
@@ -266,6 +242,11 @@ public final class MiuixPreference {
         // ------------------------------------------------------------ 内部
 
         private LinearLayout baseRow(String title, String summary, int iconRes) {
+            return baseRow(title, summary, iconRes, 0);
+        }
+
+        private LinearLayout baseRow(String rowTitle, String summary,
+                                     int iconRes, int iconTint) {
             LinearLayout row = new LinearLayout(ctx);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
@@ -276,18 +257,20 @@ public final class MiuixPreference {
             row.setClickable(true);
 
             if (iconRes != 0) {
-                ImageView iv = new ImageView(ctx);
-                iv.setImageResource(iconRes);
+                // miuix-glass-icons：图标嵌在液态玻璃块里
+                int tint = iconTint != 0 ? iconTint : MiuixTheme.primary();
+                MiuixGlass tile = MiuixGlassIcons.clearTile(ctx, iconRes,
+                        tint, 34, 20);
                 LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(
-                        MiuixTheme.dp(ctx, 22), MiuixTheme.dp(ctx, 22));
+                        MiuixTheme.dp(ctx, 34), MiuixTheme.dp(ctx, 34));
                 ip.rightMargin = MiuixTheme.dp(ctx, 12);
-                row.addView(iv, ip);
+                row.addView(tile, ip);
             }
 
             LinearLayout texts = new LinearLayout(ctx);
             texts.setOrientation(LinearLayout.VERTICAL);
             TextView t = new TextView(ctx);
-            t.setText(title);
+            t.setText(rowTitle);
             t.setTextSize(MiuixTheme.TEXT_BODY);
             t.setTextColor(MiuixTheme.onSurface());
             texts.addView(t);
@@ -304,14 +287,42 @@ public final class MiuixPreference {
             return row;
         }
 
+        private TextView valueText(String value) {
+            TextView v = new TextView(ctx);
+            v.setText(value);
+            v.setTextSize(MiuixTheme.TEXT_LABEL);
+            v.setTextColor(MiuixTheme.onSurfaceVariant());
+            v.setSingleLine(true);
+            LinearLayout.LayoutParams vp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            vp.leftMargin = MiuixTheme.dp(ctx, 8);
+            v.setLayoutParams(vp);
+            return v;
+        }
+
+        private TextView chevron() {
+            TextView chev = new TextView(ctx);
+            chev.setText("›");
+            chev.setTextSize(18f);
+            chev.setTextColor(0xFF9AA6B8);
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            cp.leftMargin = MiuixTheme.dp(ctx, 6);
+            chev.setLayoutParams(cp);
+            return chev;
+        }
+
         private void add(View row) {
             if (rowCount > 0) {
                 View line = new View(ctx);
-                line.setBackgroundColor(MiuixTheme.outline());
+                line.setBackgroundColor(0x1AFFFFFF);
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1,
                         MiuixTheme.dp(ctx, 0.7f)));
                 lp.leftMargin = MiuixTheme.dp(ctx, MiuixTheme.SPACE_ROW_H);
+                lp.rightMargin = MiuixTheme.dp(ctx, MiuixTheme.SPACE_ROW_H);
                 rows.addView(line, lp);
             }
             rows.addView(row, new LinearLayout.LayoutParams(
