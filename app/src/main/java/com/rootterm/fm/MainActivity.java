@@ -338,11 +338,7 @@ public class MainActivity extends Activity {
         mPages.addView(mSafCard, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        View nav = buildBottomNav();
-        FrameLayout.LayoutParams nlp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        nlp.gravity = Gravity.BOTTOM;
-        root.addView(nav, nlp);
+        root.addView(buildBottomNav());   // 高度与 gravity 由 buildBottomNav 自己设定
 
         installInsets(root);
         return root;
@@ -397,8 +393,10 @@ public class MainActivity extends Activity {
         FrameLayout wrap = new FrameLayout(this);
         wrap.setBackgroundColor(0x00000000);
         wrap.setClipToPadding(false);
-        wrap.setLayoutParams(new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(126)));
+        FrameLayout.LayoutParams wlp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(126));
+        wlp.gravity = Gravity.BOTTOM;
+        wrap.setLayoutParams(wlp);
 
         // 底部渐隐遮罩：从透明渐变到页面底色，内容滚到底时自然淡出（不是硬分割线）
         View scrim = new View(this);
@@ -530,12 +528,12 @@ public class MainActivity extends Activity {
         });
         mFiles.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        // 底栏浮在上面，文件页底部留出空间
-        mFilesCard.setPadding(0, 0, 0, dp(96));
 
         // 文件管理：透明容器（背景由根渐变提供，避免硬边）
         mFilesCard = new FrameLayout(this);
         mFilesCard.setBackgroundColor(0x00000000);
+        // 底栏浮在上面，文件页底部留出空间
+        mFilesCard.setPadding(0, 0, 0, dp(96));
         mFilesCard.setClipToOutline(true);
         mFilesCard.setOutlineProvider(new android.view.ViewOutlineProvider() {
             @Override
