@@ -432,21 +432,9 @@ public class MainActivity extends Activity {
         wrap.setBackgroundColor(0x00000000);
         wrap.setClipToPadding(false);
         FrameLayout.LayoutParams wlp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(126));
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         wlp.gravity = Gravity.BOTTOM;
         wrap.setLayoutParams(wlp);
-
-        // 底部渐隐遮罩：从透明渐变到页面底色，内容滚到底时自然淡出（不是硬分割线）
-        View scrim = new View(this);
-        android.graphics.drawable.GradientDrawable gd =
-                new android.graphics.drawable.GradientDrawable(
-                        android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
-                        new int[]{0x00E6EDF9, 0xB3E6EDF9, 0xF2E6EDF9});
-        scrim.setBackground(gd);
-        scrim.setClickable(false);
-        scrim.setFocusable(false);
-        wrap.addView(scrim, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         mMiuixNav = new MiuixNavBar(this);
         mMiuixNav.addItem("首页", resId("ic_nav_home"));
@@ -571,7 +559,7 @@ public class MainActivity extends Activity {
         mFilesCard = new FrameLayout(this);
         mFilesCard.setBackgroundColor(0x00000000);
         // 底栏浮在上面，文件页底部留出空间
-        mFilesCard.setPadding(0, 0, 0, dp(150));
+        mFilesCard.setPadding(0, 0, 0, dp(112));
         mFilesCard.setClipToOutline(true);
         mFilesCard.setOutlineProvider(new android.view.ViewOutlineProvider() {
             @Override
@@ -601,7 +589,7 @@ public class MainActivity extends Activity {
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
         page.setBackgroundColor(0x00000000);
-        page.setPadding(dp(20), dp(18), dp(20), dp(160));
+        page.setPadding(dp(20), dp(18), dp(20), dp(120));
 
         // 头像 + 应用名
         LinearLayout head = new LinearLayout(this);
@@ -1446,7 +1434,7 @@ public class MainActivity extends Activity {
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
         page.setBackgroundColor(0x00000000);
-        page.setPadding(dp(20), dp(22), dp(20), dp(160));
+        page.setPadding(dp(20), dp(22), dp(20), dp(120));
 
         TextView title = UiConfig.text(this, "设置", MiuixTheme.TEXT_TITLE, C_TEXT);
         title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
