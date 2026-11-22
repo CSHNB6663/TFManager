@@ -36,6 +36,7 @@ import java.io.File;
 
 import com.miuix.glass.MiuixGlass;
 import com.miuix.icons.MiuixIcons;
+import com.miuix.glassicons.MiuixGlassIcons;
 import com.miuix.nav.MiuixNavBar;
 import com.miuix.pref.MiuixPreference;
 import com.miuix.squircle.Squircle;
@@ -83,6 +84,7 @@ public class MainActivity extends Activity {
     private int mTab = TAB_HOME;
 
     private MiuixNavBar mMiuixNav;
+    private View mNavContainer;
     private PartitionPanel mPartPanel;
     private android.content.BroadcastReceiver mUsbReceiver;
     private FrameLayout mFanqieCard;
@@ -342,7 +344,8 @@ public class MainActivity extends Activity {
         mFanqieCard.setBackgroundColor(0xFFFFFFFF);
         mFanqieCard.setVisibility(View.GONE);
 
-        root.addView(buildBottomNav());   // 高度与 gravity 由 buildBottomNav 自己设定
+        mNavContainer = buildBottomNav();   // 高度与 gravity 由 buildBottomNav 自己设定
+        root.addView(mNavContainer);
 
         // 番茄登录浮层放最上层（不属于 SwipeBox，手势不被拦截）
         if (mFanqieCard != null) {
@@ -1695,6 +1698,10 @@ public class MainActivity extends Activity {
     private void showTerminal(boolean show) {
         mTermVisible = show;
         mTermCard.setVisibility(show ? View.VISIBLE : View.GONE);
+        // 终端全屏，隐藏浮层底栏，避免挡住输入框
+        if (mNavContainer != null) {
+            mNavContainer.setVisibility(show ? View.GONE : View.VISIBLE);
+        }
         if (show && mTerminal != null) {
             mTerminal.postDelayed(new Runnable() {
                 @Override
@@ -1961,19 +1968,25 @@ public class MainActivity extends Activity {
                 .show();
     }
 
-    /** 关于（miuix-window 玻璃窗口 + miuix-preference 信息行）。 */
+    /** 关于（miuix-window 桌面玻璃窗口 + miuix-glass + miuix-preference）。 */
     private void showAbout() {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
 
-        // 玻璃图标 + 名称
-        LinearLayout head = new LinearLayout(this);
-        head.setOrientation(LinearLayout.HORIZONTAL);
-        head.setGravity(Gravity.CENTER_VERTICAL);
+        // 头部：miuix-glass-icons 玻璃图标 + 名称，整块坐在一张液态玻璃上
+        MiuixGlass head = MiuixGlass.create(this);
+        head.radiusDp(MiuixTheme.RADIUS_CARD);
+        head.paddingDp(14, 14, 14, 14);
+        LinearLayout headRow = new LinearLayout(this);
+        headRow.setOrientation(LinearLayout.HORIZONTAL);
+        headRow.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(headRow, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        FrameLayout tile = MiuixIcons.glassTile(this, resId("ic_nav_terminal"),
-                MiuixTheme.onPrimary(), 46, 24, MiuixTheme.primary());
-        head.addView(tile);
+        FrameLayout tile = MiuixGlassIcons.badge(this, resId("ic_nav_terminal"),
+                MiuixTheme.onPrimary(), 48, 26);
+        headRow.addView(tile);
 
         LinearLayout names = new LinearLayout(this);
         names.setOrientation(LinearLayout.VERTICAL);
@@ -1982,38 +1995,68 @@ public class MainActivity extends Activity {
         names.addView(appName);
         names.addView(UiConfig.text(this, "v" + AppVersion.NAME + " (" + AppVersion.CODE + ")",
                 11.5f, MiuixTheme.onSurfaceVariant()));
+        names.addView(UiConfig.text(this, "Miuix 液态玻璃风格", 11f,
+                MiuixTheme.primary()));
         LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
         np.leftMargin = dp(12);
-        head.addView(names, np);
-        box.addView(head);
+        headRow.addView(names, np);
+        box.addView(head, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        // 信息行
-        MiuixPreference.Group info = MiuixPreference.group(this, null);
-        info.infoRow("界面", "Miuix 玻璃风格");
-        info.infoRow("导航", "首页 · 目录管理 · 设置");
+        // 模块清单（miuix-preference 信息行本身就是液态玻璃卡）
+        MiuixPreference.Group mods = MiuixPreference.group(this, "Miuix 模块");
+        mods.infoRow("基础 / 设置", "miuix-ui · miuix-preference");
+        mods.infoRow("图标", "miuix-icons · miuix-glass-icons");
+        mods.infoRow("材质 / 模糊", "miuix-material · miuix-blur");
+        mods.infoRow("形状 / 玻璃", "miuix-squircle · miuix-glass");
+        mods.infoRow("导航 / 窗口", "miuix-nav · miuix-window");
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        mp.topMargin = dp(14);
+        box.addView(mods.build(), mp);
+
+        // 功能信息
+        MiuixPreference.Group info = MiuixPreference.group(this, "应用信息");
+        info.infoRow("导航", "首页 · 目录管理 · 分区 · 设置");
         info.infoRow("终端", "全屏 · 可交互 · 内置 bash");
         info.infoRow("编译", "minSdk 26 / targetSdk 37");
         info.infoRow("图标", "MDI（Apache-2.0）");
         info.infoRow("隐私", "纯本地，不收集数据");
-        View card = info.build();
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        cp.topMargin = dp(14);
-        box.addView(card, cp);
+        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        ip.topMargin = dp(14);
+        box.addView(info.build(), ip);
 
+        // 警示卡：也用一块玻璃承载
+        MiuixGlass warnCard = MiuixGlass.create(this);
+        warnCard.radiusDp(MiuixTheme.RADIUS_MEDIUM);
+        warnCard.tint(0xF7FFF1F1, 0xE9FFE4E4);
+        warnCard.rim(0x80FFFFFF, 0x26C0392B);
+        warnCard.specular(false);
+        warnCard.paddingDp(14, 12, 14, 12);
         TextView warn = UiConfig.text(this,
                 "警告：root 权限下执行命令、删除文件不可撤销，请确认后再操作。"
                         + "本 App 不包含 root，需设备自行 root（Magisk / KernelSU / APatch）。",
                 11f, 0xFFC0392B);
         warn.setLineSpacing(dp(2), 1f);
+        warnCard.addView(warn, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
         LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
         wp.topMargin = dp(12);
-        box.addView(warn, wp);
+        box.addView(warnCard, wp);
 
+        // miuix-window：桌面式玻璃标题栏 + 液态玻璃窗口
         MiuixWindow.builder(this)
                 .title("关于")
+                .captionBar(true)
                 .content(box)
                 .positive("知道了", null)
                 .show();
