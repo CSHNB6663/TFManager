@@ -60,8 +60,9 @@ public class MainActivity extends Activity {
 
     private static final int TAB_HOME = 0;
     private static final int TAB_FILES = 1;
-    private static final int TAB_SETTINGS = 2;
-    private static final int TAB_COUNT = 3;
+    private static final int TAB_PART = 2;
+    private static final int TAB_SETTINGS = 3;
+    private static final int TAB_COUNT = 4;
 
     private static int C_BG = 0xFFF7F8FA;
     private static final int C_CARD = 0xFFFFFFFF;
@@ -80,6 +81,8 @@ public class MainActivity extends Activity {
     private int mTab = TAB_HOME;
 
     private MiuixNavBar mMiuixNav;
+    private PartitionPanel mPartPanel;
+    private FrameLayout mPartCard;
 
     private LinearLayout mTermCard;
     private TerminalPanel mTerminal;
@@ -277,6 +280,16 @@ public class MainActivity extends Activity {
 
         mHomePage = buildHomePage();
         mSettingsPage = buildSettingsPage();
+
+        // 分区页
+        mPartCard = new FrameLayout(this);
+        mPartCard.setBackgroundColor(C_BG);
+        mPartCard.setVisibility(View.GONE);
+        mPartPanel = new PartitionPanel(this);
+        mPartCard.addView(mPartPanel, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        mPages.addView(mPartCard, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         mPages.addView(mHomePage, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         mPages.addView(mSettingsPage, new FrameLayout.LayoutParams(
@@ -320,6 +333,7 @@ public class MainActivity extends Activity {
         mMiuixNav = new MiuixNavBar(this);
         mMiuixNav.addItem("首页", resId("ic_nav_home"));
         mMiuixNav.addItem("目录管理", resId("ic_nav_folder"));
+        mMiuixNav.addItem("分区", resId("ic_nav_root"));
         mMiuixNav.addItem("设置", resId("ic_nav_settings"));
         mMiuixNav.listener(new MiuixNavBar.Listener() {
             @Override
@@ -380,9 +394,15 @@ public class MainActivity extends Activity {
         if (tab == TAB_FILES) {
             ensureFiles();
         }
+        if (tab == TAB_PART && mPartPanel != null) {
+            mPartPanel.loadPartitions(false);
+        }
         mTab = tab;
         mHomePage.setVisibility(tab == TAB_HOME ? View.VISIBLE : View.GONE);
         mSettingsPage.setVisibility(tab == TAB_SETTINGS ? View.VISIBLE : View.GONE);
+        if (mPartCard != null) {
+            mPartCard.setVisibility(tab == TAB_PART ? View.VISIBLE : View.GONE);
+        }
         if (mFilesCard != null) {
             mFilesCard.setVisibility(tab == TAB_FILES ? View.VISIBLE : View.GONE);
         }
@@ -392,7 +412,8 @@ public class MainActivity extends Activity {
         refreshNavBackdrop();
         // 切换页面淡入 + 轻微上浮
         View shown = tab == TAB_HOME ? mHomePage
-                : (tab == TAB_FILES ? mFilesCard : mSettingsPage);
+                : (tab == TAB_FILES ? mFilesCard
+                : (tab == TAB_PART ? mPartCard : mSettingsPage));
         if (shown != null) {
             shown.setAlpha(0.92f);
             shown.setTranslationY(dp(8));
