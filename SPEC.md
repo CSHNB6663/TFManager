@@ -116,6 +116,36 @@ public final class UiConfig {
 9. 所有操作后台线程执行，结果用 Toast 提示（成功/失败原因）；
 10. `ls` 解析：用 `ls -la --time-style=+%Y-%m-%d_%H:%M` 或 `stat`（优先 `toybox ls`，Android 无 `--time-style` 时降级 `ls -la`）；解析失败时用 `find`/`stat` 兜底，任何情况不能崩。
 
+## Miuix UI 规格（按上游模块划分复刻）
+
+上游：<https://github.com/compose-miuix-ui/miuix>（Compose Multiplatform）。
+本工程是 Android framework-only Java，按「同名、同职责」复刻，不引入其 Kotlin 代码。
+所有 UI 必须用代码构建，玻璃相关组件统一走 `com.miuix.*`：
+
+| 模块 | 包 | 契约 |
+| --- | --- | --- |
+| `miuix-ui` | `com.miuix.ui` | `MiuixTheme` 语义色/字号/圆角/间距；`MiuixCard` 基础表面 |
+| `miuix-preference` | `com.miuix.pref` | `MiuixPreference.group()` 构建设置分组；支持 `switchRow` / `clickRow` / `iconClickRow` / `infoRow` / `wrapInfoRow` / `customRow` |
+| `miuix-icons` | `com.miuix.icons` | `MiuixIcons.icon()` 纯图标 |
+| `miuix-glass-icons` | `com.miuix.glassicons` | `MiuixGlassIcons.tile()` / `badge()` 玻璃底图标 |
+| `miuix-blur` | `com.miuix.blur` | `applyWindowBlur()` 系统模糊；`backdrop()` 磨砂底 |
+| `miuix-squircle` | `com.miuix.squircle` | `Squircle.path()` 超椭圆；`clipChildren()` 连续圆角裁剪 |
+| `miuix-material` | `com.miuix.material` | `MiuixMaterial.Preset`（CLEAR / LIQUID / ACCENT）集中定义玻璃材质参数 |
+| `miuix-glass` | `com.miuix.glass` | `MiuixGlass`：磨砂底 + 折射色带 + 染色 + 镜面光带 + 高光棱 + 超椭圆裁剪；`create/clear/accent/pill/material/tint/rim/specular/autoBackdrop` |
+| `miuix-nav` | `com.miuix.nav` | `MiuixNavBar`：玻璃胶囊底栏、玻璃指示块、点击/拖动切页、`autoBackdrop()` |
+| `miuix-window` | `com.miuix.window` | `MiuixWindow.captionBar()` 桌面标题栏；`builder()` 玻璃对话框（支持 `captionBar(true)`）；`freeform()` 自由窗口辅助 |
+
+强制约定：
+1. **爱用 `miuix-glass`**：卡片、设置分组、底栏、关于页、弹窗、弹窗按钮、
+   首页操作卡与状态块都用 `MiuixGlass` / `MiuixCard`（后者继承前者）；不再用
+   `GradientDrawable` 纯色圆角充当 Miuix 卡片。
+2. 玻璃材质参数只在 `miuix-material` 定义，组件不得各自硬编码一整套颜色。
+3. 底栏与「关于」是验收重点：底栏必须整块液态玻璃 + 连续圆角 + 自动磨砂；
+   「关于」必须用 `miuix-window` 玻璃窗口 + 桌面标题栏 + `miuix-glass-icons`
+   图标 + `miuix-preference` 信息卡，并列出全部 Miuix 模块。
+4. 图标分两套：纯图标走 `miuix-icons`，玻璃底图标走 `miuix-glass-icons`。
+5. 模糊只通过 `miuix-blur`；连续圆角只通过 `miuix-squircle`。
+
 ## 构建与验证（Lead 负责集成）
 - `bash /root/workspace/rootterm/build.sh` → `dist/RootTerm-1.0.apk`（已签名，v1+v2+v3）；
 - 验证：`aapt dump badging` 显示 `minSdk 26 / targetSdk 37`，`apksigner verify` 通过；
