@@ -35,6 +35,12 @@ public final class ImagePicker {
     /** 弹出选择器。 */
     public static void show(final Context ctx, final String title,
                             String startDir, final OnPick cb) {
+        show(ctx, title, startDir, new String[]{".img", ".bin"}, "镜像文件（.img / .bin）", cb);
+    }
+
+    /** 通用版本：自定义扩展名与提示。 */
+    public static void show(final Context ctx, final String title, String startDir,
+                            final String[] exts, final String hint, final OnPick cb) {
         final String dir = startDir == null || startDir.isEmpty()
                 ? "/sdcard/Download" : startDir;
 
@@ -50,7 +56,7 @@ public final class ImagePicker {
         box.addView(pathView);
 
         TextView tip = new TextView(ctx);
-        tip.setText("选择镜像文件（.img / .bin）");
+        tip.setText(hint);
         tip.setTextSize(11f);
         tip.setTextColor(MiuixTheme.onSurfaceVariant());
         tip.setPadding(0, dp(ctx, 4), 0, dp(ctx, 6));
@@ -70,12 +76,13 @@ public final class ImagePicker {
                 .negative("取消", null)
                 .show();
 
-        fill(ctx, listBox, pathView, dir, dlg, cb);
+        fill(ctx, listBox, pathView, dir, dlg, cb, exts);
     }
 
     private static void fill(final Context ctx, final LinearLayout listBox,
                              final TextView pathView, final String dir,
-                             final android.app.Dialog dlg, final OnPick cb) {
+                             final android.app.Dialog dlg, final OnPick cb,
+                             final String[] exts) {
         listBox.removeAllViews();
         pathView.setText(dir);
 
@@ -84,7 +91,7 @@ public final class ImagePicker {
                 @Override
                 public void onClick(View v) {
                     int i = dir.lastIndexOf('/');
-                    fill(ctx, listBox, pathView, i <= 0 ? "/" : dir.substring(0, i), dlg, cb);
+                    fill(ctx, listBox, pathView, i <= 0 ? "/" : dir.substring(0, i), dlg, cb, exts);
                 }
             }));
         }
@@ -92,7 +99,7 @@ public final class ImagePicker {
             listBox.addView(row(ctx, "📥 下载目录", true, new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    fill(ctx, listBox, pathView, "/sdcard/Download", dlg, cb);
+                    fill(ctx, listBox, pathView, "/sdcard/Download", dlg, cb, exts);
                 }
             }));
         }
@@ -126,12 +133,19 @@ public final class ImagePicker {
                 listBox.addView(row(ctx, "📁 " + n, true, new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        fill(ctx, listBox, pathView, f.getAbsolutePath(), dlg, cb);
+                        fill(ctx, listBox, pathView, f.getAbsolutePath(), dlg, cb, exts);
                     }
                 }));
             } else {
                 String ln = n.toLowerCase(Locale.US);
-                if (!ln.endsWith(".img") && !ln.endsWith(".bin")) {
+                boolean ok = false;
+                for (String e : exts) {
+                    if (ln.endsWith(e.toLowerCase(Locale.US))) {
+                        ok = true;
+                        break;
+                    }
+                }
+                if (!ok) {
                     continue;
                 }
                 if (shown++ > 200) {
@@ -150,7 +164,7 @@ public final class ImagePicker {
             }
         }
         if (shown == 0) {
-            listBox.addView(row(ctx, "（此目录没有 .img / .bin 镜像）", false, null));
+            listBox.addView(row(ctx, "（此目录没有符合条件的文件）", false, null));
         }
     }
 

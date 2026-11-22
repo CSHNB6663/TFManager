@@ -178,6 +178,13 @@ public class MainActivity extends Activity {
             }
         }, 700);
         registerUsbReceiver();
+        // 启动自动播放背景音乐
+        mPages.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                autoPlayBgm();
+            }
+        }, 1200);
     }
 
     // ------------------------------------------------------------ 窗口
@@ -435,6 +442,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        BgmPlayer.stop(this);
         try {
             if (mUsbReceiver != null) {
                 unregisterReceiver(mUsbReceiver);
@@ -1541,6 +1549,36 @@ public class MainActivity extends Activity {
         look.infoRow("主题配色", "固定玻璃蓝");
         page.addView(look.build());
 
+        // ---------------- 背景音乐 ----------------
+        page.addView(gap(14));
+        MiuixPreference.Group bgm = MiuixPreference.group(this, "背景音乐");
+        bgm.switchRow("启动自动播放", "打开 App 时自动播放背景音乐",
+                BgmPlayer.enabled(this), new MiuixPreference.OnSwitch() {
+                    @Override
+                    public void onChanged(boolean checked) {
+                        BgmPlayer.setEnabled(MainActivity.this, checked);
+                        if (!checked) {
+                            BgmPlayer.stop(MainActivity.this);
+                        } else if (BgmPlayer.fileReady(MainActivity.this)) {
+                            BgmPlayer.play(MainActivity.this);
+                        }
+                    }
+                });
+        bgm.clickRow("音乐文件", BgmPlayer.path(this), "", new MiuixPreference.OnClick() {
+            @Override
+            public void onClick(View v) {
+                pickBgm();
+            }
+        });
+        bgm.clickRow("播放 / 暂停", BgmPlayer.isPlaying() ? "正在播放" : "已暂停", "",
+                new MiuixPreference.OnClick() {
+                    @Override
+                    public void onClick(View v) {
+                        toggleBgm();
+                    }
+                });
+        page.addView(bgm.build());
+
         // ---------------- 文件与权限 ----------------
         page.addView(gap(14));
         MiuixPreference.Group perms = MiuixPreference.group(this, "文件与权限");
@@ -2171,6 +2209,65 @@ public class MainActivity extends Activity {
                 .content(box)
                 .positive("知道了", null)
                 .show();
+    }
+
+    // ------------------------------------------------------------ 背景音乐
+
+    private void pickBgm() {
+        ImagePicker.show(this, "选择背景音乐", "/sdcard/Music",
+                new String[]{".mp3", ".m4a", ".flac", ".wav", ".ogg", ".aac"},
+                "选择你自己的音频文件（本 App 不内置任何音乐）",
+                new ImagePicker.OnPick() {
+                    @Override
+                    public void onPick(File f) {
+                        BgmPlayer.setPath(MainActivity.this, f.getAbsolutePath());
+                        toast("已选择：" + f.getName());
+                        if (BgmPlayer.enabled(MainActivity.this)) {
+                            BgmPlayer.play(MainActivity.this);
+                        }
+                    }
+                });
+    }
+
+    private void toggleBgm() {
+        if (BgmPlayer.isPlaying()) {
+            BgmPlayer.pause();
+            toast("已暂停");
+            return;
+        }
+        if (!BgmPlayer.fileReady(this)) {
+            MiuixWindow.builder(this)
+                    .title("没有找到音乐文件")
+                    .message("当前路径：\n" + BgmPlayer.path(this)
+                            + "\n\n本 App 不内置任何音乐（避免版权问题）。\n"
+                            + "请把你自己的音频文件放到该路径，"
+                            + "或在设置里点「音乐文件」选择一个本地音频。")
+                    .positive("选择文件", new MiuixWindow.OnAction() {
+                        @Override
+                        public void onClick(android.app.Dialog d) {
+                            pickBgm();
+                        }
+                    })
+                    .negative("知道了", null)
+                    .show();
+            return;
+        }
+        if (BgmPlayer.play(this)) {
+            toast("开始播放");
+        } else {
+            toast("播放失败（文件可能损坏或格式不支持）");
+        }
+    }
+
+    /** 启动时自动播放背景音乐。 */
+    private void autoPlayBgm() {
+        if (!BgmPlayer.enabled(this)) {
+            return;
+        }
+        if (!BgmPlayer.fileReady(this)) {
+            return;
+        }
+        BgmPlayer.play(this);
     }
 
     // ------------------------------------------------------------ 番茄小说下载
