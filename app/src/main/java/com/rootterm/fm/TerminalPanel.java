@@ -768,10 +768,12 @@ public class TerminalPanel extends LinearLayout {
         if (inputView == null) {
             return;
         }
-        // 防重复：IME 的「发送」键会同时触发 OnEditorAction 与 OnKey(ENTER)，
-        // 不加防抖会导致同一条命令执行两次。
+        // 防重复：IME 的「发送」键会同时触发 OnEditorAction 与 OnKey(ENTER)。
+        // 交互模式下用更长的窗口（800ms）——这类加载器通常「空回车=确认」，
+        // 用户连按两次回车会把空行当成菜单选项发进去，导致程序判定无效选择而退出。
         long now = android.os.SystemClock.uptimeMillis();
-        if (now - lastSubmitAt < 350) {
+        long window = (mInteractive != null) ? 800 : 350;
+        if (now - lastSubmitAt < window) {
             return;
         }
         lastSubmitAt = now;
@@ -974,7 +976,7 @@ public class TerminalPanel extends LinearLayout {
         } else {
             enterInteractiveUi(true);
             if (inputView != null) {
-                inputView.setHint("输入选项后回车（如 1）；eof 结束输入");
+                inputView.setHint("输入选项后回车（如 1）；空回车=确认；eof 结束");
             }
         }
     }
