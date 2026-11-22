@@ -64,8 +64,9 @@ public class MainActivity extends Activity {
     private static final int TAB_HOME = 0;
     private static final int TAB_FILES = 1;
     private static final int TAB_PART = 2;
-    private static final int TAB_SETTINGS = 3;
-    private static final int TAB_COUNT = 4;
+    private static final int TAB_PRIV = 3;
+    private static final int TAB_SETTINGS = 4;
+    private static final int TAB_COUNT = 5;
 
     private static int C_BG = 0xFFF7F8FA;
     private static final int C_CARD = 0xFFFFFFFF;
@@ -86,6 +87,8 @@ public class MainActivity extends Activity {
     private MiuixNavBar mMiuixNav;
     private View mNavContainer;
     private PartitionPanel mPartPanel;
+    private PrivilegePanel mPrivPanel;
+    private FrameLayout mPrivCard;
     private android.content.BroadcastReceiver mUsbReceiver;
     private FrameLayout mFanqieCard;
     private FanqieWebLogin mFanqieLogin;
@@ -326,6 +329,16 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         mPages.addView(mPartCard, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        // 提权页
+        mPrivCard = new FrameLayout(this);
+        mPrivCard.setBackgroundColor(0x00000000);
+        mPrivCard.setVisibility(View.GONE);
+        mPrivPanel = new PrivilegePanel(this);
+        mPrivCard.addView(mPrivPanel, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        mPages.addView(mPrivCard, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         mPages.addView(mHomePage, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         mPages.addView(mSettingsPage, new FrameLayout.LayoutParams(
@@ -449,8 +462,9 @@ public class MainActivity extends Activity {
 
         mMiuixNav = new MiuixNavBar(this);
         mMiuixNav.addItem("首页", resId("ic_nav_home"));
-        mMiuixNav.addItem("目录管理", resId("ic_nav_folder"));
+        mMiuixNav.addItem("目录", resId("ic_nav_folder"));
         mMiuixNav.addItem("分区", resId("ic_nav_root"));
+        mMiuixNav.addItem("提权", resId("ic_nav_about"));
         mMiuixNav.addItem("设置", resId("ic_nav_settings"));
         mMiuixNav.listener(new MiuixNavBar.Listener() {
             @Override
@@ -514,11 +528,17 @@ public class MainActivity extends Activity {
         if (tab == TAB_PART && mPartPanel != null) {
             mPartPanel.loadPartitions(false);
         }
+        if (tab == TAB_PRIV && mPrivPanel != null) {
+            mPrivPanel.detect();
+        }
         mTab = tab;
         mHomePage.setVisibility(tab == TAB_HOME ? View.VISIBLE : View.GONE);
         mSettingsPage.setVisibility(tab == TAB_SETTINGS ? View.VISIBLE : View.GONE);
         if (mPartCard != null) {
             mPartCard.setVisibility(tab == TAB_PART ? View.VISIBLE : View.GONE);
+        }
+        if (mPrivCard != null) {
+            mPrivCard.setVisibility(tab == TAB_PRIV ? View.VISIBLE : View.GONE);
         }
         if (mFilesCard != null) {
             mFilesCard.setVisibility(tab == TAB_FILES ? View.VISIBLE : View.GONE);
@@ -530,7 +550,8 @@ public class MainActivity extends Activity {
         // 切换页面淡入 + 轻微上浮
         View shown = tab == TAB_HOME ? mHomePage
                 : (tab == TAB_FILES ? mFilesCard
-                : (tab == TAB_PART ? mPartCard : mSettingsPage));
+                : (tab == TAB_PART ? mPartCard
+                : (tab == TAB_PRIV ? mPrivCard : mSettingsPage)));
         if (shown != null) {
             shown.setAlpha(0.92f);
             shown.setTranslationY(dp(8));
