@@ -169,10 +169,14 @@ public class MainActivity extends Activity {
             return;
         }
         loadDeviceInfo();
+        mLastUpdateCheck = System.currentTimeMillis();   // 标记已检查，避免 onResume 重复请求
         mPages.postDelayed(new Runnable() {
             @Override
             public void run() {
-                autoCheckUpdate();
+                try {
+                    autoCheckUpdate();
+                } catch (Throwable ignored) {
+                }
             }
         }, 1500);
         loadSystemInfo();
