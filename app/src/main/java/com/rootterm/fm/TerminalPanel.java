@@ -869,6 +869,7 @@ public class TerminalPanel extends LinearLayout {
 
     /** 普通一次性命令。 */
     private void runOnce(String raw) {
+        AppLog.log("SH", "run: " + raw);
         final String cmd = "cd " + Shell.quote(cwd) + " && " + raw;
         setRunning(true);
         Shell.exec(cmd, new Shell.Callback() {
@@ -880,6 +881,7 @@ public class TerminalPanel extends LinearLayout {
             }
 
             public void onDone(int exitCode) {
+                AppLog.log("SH", "exit " + exitCode);
                 if (exitCode == -1) {
                     printLine("[执行失败/超时]", UiConfig.ERROR);
                 } else if (exitCode != 0) {

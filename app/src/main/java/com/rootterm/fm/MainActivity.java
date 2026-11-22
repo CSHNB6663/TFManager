@@ -129,6 +129,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // 日志与崩溃捕获：尽早初始化
+        AppLog.init(this);
         // 固定玻璃配色（已移除 Monet 动态取色）
         ThemeColors.init(this);
         C_BG = ThemeColors.SURFACE;
@@ -440,6 +442,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        AppLog.log("LIFE", "onResume");
         // 回到前台再检查一次（10 分钟节流），已弹过强制更新则不重复
         if (mForceUpdateShown) {
             return;
@@ -459,6 +462,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        AppLog.log("LIFE", "onDestroy");
         super.onDestroy();
         BgmPlayer.stop(this);
         try {
@@ -558,6 +562,7 @@ public class MainActivity extends Activity {
     // ------------------------------------------------------------ 页面切换
 
     private void selectTab(int tab) {
+        AppLog.log("NAV", "selectTab " + tab);
         if (tab == TAB_FILES) {
             ensureFiles();
         }
@@ -1258,6 +1263,8 @@ public class MainActivity extends Activity {
         UpdateChecker.check(feed, new UpdateChecker.Callback() {
             @Override
             public void onResult(UpdateChecker.Result r) {
+                AppLog.log("UPDATE", "check ok=" + r.ok + " remote=" + r.versionName
+                        + " err=" + r.error);
                 if (r.ok && isNewer(r)) {
                     showForceUpdate(r);
                 }
@@ -1677,6 +1684,34 @@ public class MainActivity extends Activity {
         // ---------------- 更新 ----------------
         page.addView(gap(14));
         page.addView(buildUpdateCard());
+
+        // ---------------- 日志 ----------------
+        page.addView(gap(14));
+        MiuixPreference.Group logGroup = MiuixPreference.group(this, "日志");
+        logGroup.iconClickRow(resId("ic_file_text"), MiuixTheme.primary(),
+                "查看运行日志", "最近 300 行", "", new MiuixPreference.OnClick() {
+                    @Override
+                    public void onClick(View v) {
+                        showLog();
+                    }
+                });
+        logGroup.iconClickRow(resId("ic_file_unknown"), MiuixTheme.error(),
+                "查看崩溃记录", AppLog.crashSummary().split("\n")[0], "",
+                new MiuixPreference.OnClick() {
+                    @Override
+                    public void onClick(View v) {
+                        showCrash();
+                    }
+                });
+        logGroup.iconClickRow(resId("ic_file_archive"), MiuixTheme.onSurfaceVariant(),
+                "清除日志", "删除 app.log 与崩溃文件", "", new MiuixPreference.OnClick() {
+                    @Override
+                    public void onClick(View v) {
+                        AppLog.clear();
+                        toast("日志已清除");
+                    }
+                });
+        page.addView(logGroup.build());
 
         // ---------------- 关于 ----------------
         page.addView(gap(14));
@@ -2245,6 +2280,55 @@ public class MainActivity extends Activity {
                 .content(box)
                 .positive("知道了", null)
                 .show();
+    }
+
+    // ------------------------------------------------------------ 日志
+
+    private void showLog() {
+        String text = AppLog.tail(300);
+        MiuixWindow.builder(this)
+                .title("运行日志")
+                .message(text)
+                .neutral("复制", new MiuixWindow.OnAction() {
+                    @Override
+                    public void onClick(android.app.Dialog d) {
+                        copyText(AppLog.tail(300));
+                    }
+                })
+                .positive("关闭", null)
+                .show();
+    }
+
+    private void showCrash() {
+        String text = AppLog.latestCrash();
+        if (text == null || text.trim().isEmpty()) {
+            text = "（暂无崩溃记录）\n\n崩溃文件会保存在：\n"
+                    + (AppLog.dir(this) == null ? "不可用" : AppLog.dir(this).getAbsolutePath());
+        }
+        MiuixWindow.builder(this)
+                .title("崩溃记录")
+                .message(text)
+                .neutral("复制", new MiuixWindow.OnAction() {
+                    @Override
+                    public void onClick(android.app.Dialog d) {
+                        copyText(AppLog.latestCrash());
+                    }
+                })
+                .positive("关闭", null)
+                .show();
+    }
+
+    private void copyText(String s) {
+        try {
+            android.content.ClipboardManager cm = (android.content.ClipboardManager)
+                    getSystemService(CLIPBOARD_SERVICE);
+            if (cm != null && s != null) {
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("log", s));
+                toast("已复制");
+            }
+        } catch (Throwable t) {
+            toast("复制失败");
+        }
     }
 
     // ------------------------------------------------------------ 状态栏常驻

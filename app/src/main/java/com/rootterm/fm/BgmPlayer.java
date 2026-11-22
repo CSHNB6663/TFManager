@@ -154,6 +154,7 @@ public final class BgmPlayer {
             sPlayingPath = p;
             return true;
         } catch (Throwable t) {
+            AppLog.log("BGM", "play failed", t);
             release();
             return false;
         }
