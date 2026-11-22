@@ -801,6 +801,8 @@ public class TerminalPanel extends LinearLayout {
         inputView.setText("");
         addHistory(raw);
         handleCommand(raw);
+        // 命令可能长时间运行（或进入交互模式），立刻把键盘还回来
+        showKeyboard();
     }
 
     private void handleCommand(final String raw) {
@@ -868,7 +870,12 @@ public class TerminalPanel extends LinearLayout {
                             6000).trim().replace(" ", "").toLowerCase();
                     final boolean elf = magic.startsWith("7f454c46");
                     final boolean loaderPattern = raw.contains("chmod") && raw.contains("./");
-                    final boolean interactiveFlag = elf || loaderPattern;
+                    // 用内置 bash 跑 .sh 脚本：可能是交互式菜单，必须走交互模式，
+                    // 否则 stdin 是 EOF → 脚本卡住 → running 永远为 true → 键盘再也回不来
+                    final boolean bashScript = raw.contains("/tfbash/bash")
+                            || raw.contains("tfbash/bash")
+                            || raw.contains(".sh");
+                    final boolean interactiveFlag = elf || loaderPattern || bashScript;
                     post(new Runnable() {
                         public void run() {
                             if (interactiveFlag) {

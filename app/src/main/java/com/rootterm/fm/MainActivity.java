@@ -446,21 +446,28 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         AppLog.log("LIFE", "onResume");
-        // 回到前台再检查一次（10 分钟节流），已弹过强制更新则不重复
-        if (mForceUpdateShown) {
-            return;
-        }
-        long now = System.currentTimeMillis();
-        if (now - mLastUpdateCheck < 10 * 60 * 1000L) {
-            return;
-        }
-        mLastUpdateCheck = now;
-        mPages.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                autoCheckUpdate();
+        try {
+            // 回到前台再检查一次（10 分钟节流），已弹过强制更新则不重复
+            if (mForceUpdateShown || mPages == null) {
+                return;
             }
-        }, 800);
+            long now = System.currentTimeMillis();
+            if (now - mLastUpdateCheck < 10 * 60 * 1000L) {
+                return;
+            }
+            mLastUpdateCheck = now;
+            mPages.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        autoCheckUpdate();
+                    } catch (Throwable ignored) {
+                    }
+                }
+            }, 800);
+        } catch (Throwable t) {
+            AppLog.log("LIFE", "onResume 异常", t);
+        }
     }
 
     @Override
@@ -566,6 +573,7 @@ public class MainActivity extends Activity {
 
     private void selectTab(int tab) {
         AppLog.log("NAV", "selectTab " + tab);
+        try {
         if (tab == TAB_FILES) {
             ensureFiles();
         }
@@ -604,6 +612,9 @@ public class MainActivity extends Activity {
         }
         if (tab == TAB_HOME) {
             refreshHome();
+        }
+        } catch (Throwable t) {
+            AppLog.log("NAV", "selectTab 异常", t);
         }
     }
 
