@@ -467,7 +467,14 @@ public class TerminalPanel extends LinearLayout {
         }
         inputView.setFocusable(true);
         inputView.setFocusableInTouchMode(true);
+        inputView.setShowSoftInputOnFocus(true);
         inputView.requestFocus();
+        // 两次尝试：部分 ROM 第一次 showSoftInput 会被吞掉
+        attemptShowKeyboard(120);
+        attemptShowKeyboard(400);
+    }
+
+    private void attemptShowKeyboard(long delay) {
         inputView.postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -476,14 +483,20 @@ public class TerminalPanel extends LinearLayout {
                             (android.view.inputmethod.InputMethodManager)
                                     getContext().getSystemService(
                                             android.content.Context.INPUT_METHOD_SERVICE);
-                    if (imm != null) {
-                        imm.showSoftInput(inputView,
-                                android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                    if (imm == null || inputView == null) {
+                        return;
                     }
+                    if (!inputView.hasFocus()) {
+                        inputView.requestFocus();
+                    }
+                    // restartInput 能重建 InputConnection，修复「键盘再也弹不出」
+                    imm.restartInput(inputView);
+                    imm.showSoftInput(inputView,
+                            android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
                 } catch (Throwable ignored) {
                 }
             }
-        }, 120);
+        }, delay);
     }
 
     /** 键盘弹出/收起时由宿主通知，滚动到最新输出。 */
@@ -500,11 +513,15 @@ public class TerminalPanel extends LinearLayout {
 
     private void setRunning(boolean isRunning) {
         running = isRunning;
+        // 注意：绝不能 setEnabled(false) 输入框。
+        // 一加/ColorOS 等 ROM 上禁用再启用会丢失 InputConnection，
+        // 表现为「第一次回车后键盘再也弹不出来」。
         if (inputView != null) {
-            inputView.setEnabled(!isRunning);
+            inputView.setAlpha(isRunning ? 0.6f : 1f);
         }
         if (runBtn != null) {
             runBtn.setEnabled(!isRunning);
+            runBtn.setAlpha(isRunning ? 0.5f : 1f);
         }
         if (promptView != null) {
             promptView.setTextColor(isRunning ? UiConfig.TEXT_DIM : UiConfig.ACCENT);
@@ -726,6 +743,8 @@ public class TerminalPanel extends LinearLayout {
             return;
         }
         if (running) {
+            printLine("[正在执行，请稍候…]", UiConfig.TEXT_DIM);
+            showKeyboard();
             return;
         }
         String raw = inputView.getText().toString().trim();
