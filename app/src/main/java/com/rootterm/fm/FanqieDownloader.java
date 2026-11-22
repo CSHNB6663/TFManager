@@ -36,6 +36,10 @@ public final class FanqieDownloader {
         public String author = "";
         public int total;
         public final List<String> chapterIds = new ArrayList<String>();
+        /** 章节标题（与 chapterIds 一一对应，可能为空）。 */
+        public final List<String> chapterTitles = new ArrayList<String>();
+        /** 是否锁定/付费（true 表示未解锁）。 */
+        public final List<Boolean> chapterLocked = new ArrayList<Boolean>();
     }
 
     /** 章节。 */
@@ -126,6 +130,30 @@ public final class FanqieDownloader {
         if (b.title.isEmpty()) {
             b.title = "fanqie-" + bookId;
         }
+        // 目录 API：拿章节名 + 是否锁定
+        try {
+            String dir = get("https://fanqienovel.com/api/reader/directory/detail?bookId=" + bookId);
+            Matcher cm = Pattern.compile(
+                    "\\{\"itemId\":\"(\\d+)\"[^}]*?\"title\":\"(.*?)\"[^}]*?\"isChapterLock\":(true|false)")
+                    .matcher(dir);
+            List<String> ids = new ArrayList<String>();
+            List<String> titles = new ArrayList<String>();
+            List<Boolean> locked = new ArrayList<Boolean>();
+            while (cm.find()) {
+                ids.add(cm.group(1));
+                titles.add(jsonUnescape(cm.group(2)));
+                locked.add("true".equals(cm.group(3)));
+            }
+            if (!ids.isEmpty()) {
+                b.chapterIds.clear();
+                b.chapterIds.addAll(ids);
+                b.chapterTitles.clear();
+                b.chapterTitles.addAll(titles);
+                b.chapterLocked.clear();
+                b.chapterLocked.addAll(locked);
+            }
+        } catch (Throwable ignored) {
+        }
         return b;
     }
 
@@ -164,6 +192,12 @@ public final class FanqieDownloader {
      * @return 生成的 txt 文件
      */
     public static File download(String link, int maxChapters, Progress p) throws Exception {
+        return download(link, maxChapters, "", p);
+    }
+
+    public static File download(String link, int maxChapters, String cookieStr,
+                                Progress p) throws Exception {
+        setCookie(cookieStr);
         String bookId = parseBookId(link);
         if (bookId == null) {
             throw new Exception("链接里找不到书籍 ID\n请粘贴形如 https://fanqienovel.com/page/7143038691944959011 的链接");
@@ -195,12 +229,19 @@ public final class FanqieDownloader {
             if (p != null) {
                 p.onProgress(i, total, "第 " + (i + 1) + "/" + total + " 章…");
             }
+            boolean locked = i < book.chapterLocked.size() && book.chapterLocked.get(i);
+            String name = i < book.chapterTitles.size() ? book.chapterTitles.get(i) : "";
             try {
                 Chapter c = fetchChapter(cid);
-                sb.append("第").append(i + 1).append("章  ")
-                        .append(c.title == null ? "" : c.title).append("\n\n");
-                sb.append(c.text).append("\n\n");
-                ok++;
+                String title = c.title == null || c.title.isEmpty() ? name : c.title;
+                sb.append(title.isEmpty() ? ("第" + (i + 1) + "章") : title).append("\n\n");
+                if (c.text == null || c.text.trim().isEmpty()) {
+                    sb.append(locked ? "（该章未解锁，需在番茄 App 内购买/开通会员）"
+                            : "（该章正文为空，可能需要登录）").append("\n\n");
+                } else {
+                    sb.append(c.text).append("\n\n");
+                    ok++;
+                }
             } catch (Throwable t) {
                 sb.append("（第 ").append(i + 1).append(" 章获取失败：")
                         .append(t.getMessage()).append("）\n\n");
@@ -225,6 +266,13 @@ public final class FanqieDownloader {
 
     // ---------------------------------------------------------------- 工具
 
+    private static String cookie = "";
+
+    /** 设置登录 cookie（来自 WebView 登录）。 */
+    public static void setCookie(String c) {
+        cookie = c == null ? "" : c;
+    }
+
     private static String get(String url) throws Exception {
         HttpURLConnection conn = null;
         try {
@@ -234,6 +282,9 @@ public final class FanqieDownloader {
             conn.setRequestProperty("User-Agent", UA);
             conn.setRequestProperty("Accept-Language", "zh-CN,zh;q=0.9");
             conn.setRequestProperty("Referer", "https://fanqienovel.com/");
+            if (cookie != null && !cookie.isEmpty()) {
+                conn.setRequestProperty("Cookie", cookie);
+            }
             int code = conn.getResponseCode();
             if (code < 200 || code >= 300) {
                 throw new Exception("HTTP " + code);

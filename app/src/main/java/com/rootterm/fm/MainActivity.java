@@ -85,6 +85,8 @@ public class MainActivity extends Activity {
     private MiuixNavBar mMiuixNav;
     private PartitionPanel mPartPanel;
     private android.content.BroadcastReceiver mUsbReceiver;
+    private FrameLayout mFanqieCard;
+    private FanqieWebLogin mFanqieLogin;
     private FrameLayout mPartCard;
 
     private LinearLayout mTermCard;
@@ -338,6 +340,13 @@ public class MainActivity extends Activity {
         mSafCard.addView(mSaf, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         mPages.addView(mSafCard, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        // 番茄登录浮层
+        mFanqieCard = new FrameLayout(this);
+        mFanqieCard.setBackgroundColor(0xFFFFFFFF);
+        mFanqieCard.setVisibility(View.GONE);
+        mPages.addView(mFanqieCard, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         root.addView(buildBottomNav());   // 高度与 gravity 由 buildBottomNav 自己设定
@@ -1691,6 +1700,10 @@ public class MainActivity extends Activity {
     }
 
     private void goBack() {
+        if (mFanqieCard != null && mFanqieCard.getVisibility() == View.VISIBLE) {
+            closeFanqieLogin();
+            return;
+        }
         if (mSafCard != null && mSafCard.getVisibility() == View.VISIBLE) {
             if (mSaf != null && mSaf.goUp()) {
                 return;
@@ -1927,6 +1940,37 @@ public class MainActivity extends Activity {
         tip.setLineSpacing(dp(2), 1f);
         box.addView(tip);
 
+        // 登录状态行
+        LinearLayout loginRow = new LinearLayout(this);
+        loginRow.setOrientation(LinearLayout.HORIZONTAL);
+        loginRow.setGravity(Gravity.CENTER_VERTICAL);
+        loginRow.setPadding(0, dp(12), 0, 0);
+
+        final TextView loginState = new TextView(this);
+        loginState.setTextSize(11.5f);
+        loginState.setTextColor(FanqieSession.loggedIn(this)
+                ? MiuixTheme.success() : 0xFFC0392B);
+        loginState.setText(FanqieSession.loggedIn(this)
+                ? "✓ 已登录番茄账号（可获取全文）" : "未登录：只能拿到试读片段");
+        loginRow.addView(loginState, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView loginBtn = new TextView(this);
+        loginBtn.setText(FanqieSession.loggedIn(this) ? "重新登录" : "登录");
+        loginBtn.setTextSize(11.5f);
+        loginBtn.setTextColor(MiuixTheme.primary());
+        loginBtn.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        loginBtn.setPadding(dp(8), dp(4), dp(2), dp(4));
+        loginBtn.setClickable(true);
+        loginBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                openFanqieLogin();
+            }
+        });
+        loginRow.addView(loginBtn);
+        box.addView(loginRow);
+
         box.addView(label2("书籍链接"));
         box.addView(linkEt);
         box.addView(label2("导出章节数"));
@@ -1955,7 +1999,7 @@ public class MainActivity extends Activity {
                         if (n > 200) {
                             n = 200;
                         }
-                        startFanqieDownload(link, n);
+                        startFanqieDownload(link, n, FanqieSession.cookie(MainActivity.this));
                     }
                 })
                 .negative("取消", null)
@@ -1968,7 +2012,46 @@ public class MainActivity extends Activity {
         return v;
     }
 
-    private void startFanqieDownload(final String link, final int chapters) {
+    /** 打开番茄登录 WebView。 */
+    private void openFanqieLogin() {
+        if (mFanqieCard == null) {
+            return;
+        }
+        if (mFanqieLogin != null) {
+            mFanqieLogin.destroy();
+        }
+        mFanqieLogin = new FanqieWebLogin(this);
+        mFanqieLogin.setOnDone(new FanqieWebLogin.OnDone() {
+            @Override
+            public void onDone(String cookie) {
+                closeFanqieLogin();
+                if (cookie != null && cookie.contains("sessionid")) {
+                    toast("登录成功，已保存");
+                } else {
+                    toast("未检测到登录态");
+                }
+            }
+        });
+        mFanqieCard.removeAllViews();
+        mFanqieCard.addView(mFanqieLogin, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        mFanqieCard.setVisibility(View.VISIBLE);
+        mFanqieCard.bringToFront();
+    }
+
+    private void closeFanqieLogin() {
+        if (mFanqieCard != null) {
+            mFanqieCard.setVisibility(View.GONE);
+            mFanqieCard.removeAllViews();
+        }
+        if (mFanqieLogin != null) {
+            mFanqieLogin.destroy();
+            mFanqieLogin = null;
+        }
+    }
+
+    private void startFanqieDownload(final String link, final int chapters,
+                                     final String cookie) {
         final TextView status = new TextView(this);
         status.setText("正在准备…");
         status.setTextSize(12.5f);
@@ -2000,7 +2083,7 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 try {
-                    final File out = FanqieDownloader.download(link, chapters,
+                    final File out = FanqieDownloader.download(link, chapters, cookie,
                             new FanqieDownloader.Progress() {
                                 @Override
                                 public void onProgress(final int done, final int total,
