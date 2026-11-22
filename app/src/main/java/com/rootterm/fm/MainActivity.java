@@ -645,9 +645,9 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         nlp.leftMargin = dp(12);
-        TextView name = UiConfig.text(this, "TF管理终端", 30f, C_TEXT);
+        TextView name = UiConfig.text(this, "酷安@云中语", 26f, C_TEXT);
         name.setTypeface(name.getTypeface(), android.graphics.Typeface.BOLD);
-        TextView sub = UiConfig.text(this, "文件管理终端 · root shell", 11.5f, C_DIM);
+        TextView sub = UiConfig.text(this, "TF管理终端 · 文件管理 · root shell", 11.5f, C_DIM);
         sub.setPadding(0, dp(2), 0, 0);
         names.addView(name);
         names.addView(sub);
