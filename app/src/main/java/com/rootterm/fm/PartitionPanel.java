@@ -123,6 +123,7 @@ public class PartitionPanel extends LinearLayout {
         mTabFastboot.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
+                showFastbootWarning();
                 setMode(0);
             }
         });
@@ -198,6 +199,29 @@ public class PartitionPanel extends LinearLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         setMode(0);
+    }
+
+    /** 进入 Fastboot 前的线材提醒。 */
+    private void showFastbootWarning() {
+        LinearLayout box = new LinearLayout(ctx);
+        box.setOrientation(VERTICAL);
+
+        TextView warn = new TextView(ctx);
+        warn.setText("· 请使用原装数据线（或质量可靠的数据线）进行刷写\n\n"
+                + "· 刷机过程中请不要压到、折到或碰到数据线，"
+                + "也不要移动设备，避免接触不良导致传输中断\n\n"
+                + "· 刷写中断可能造成设备无法开机，请确保电量充足（建议 50% 以上）");
+        warn.setTextSize(12.5f);
+        warn.setTextColor(0xFFC0392B);
+        warn.setLineSpacing(dp(3), 1f);
+        box.addView(warn);
+
+        MiuixWindow.builder(ctx)
+                .title("刷写前请注意")
+                .content(box)
+                .scrollable(false)
+                .positive("我知道了", null)
+                .show();
     }
 
     /** 模式按钮。 */
