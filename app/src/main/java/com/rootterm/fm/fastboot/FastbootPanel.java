@@ -144,13 +144,6 @@ public class FastbootPanel extends LinearLayout {
         bp.topMargin = dp(11);
         col.addView(btns, bp);
 
-        btns.addView(actionButton("刷写分区…", 0x14E8481F, MiuixTheme.error(),
-                new OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        customFlashDialog();
-                    }
-                }));
         btns.addView(actionButton("重启", 0x14000000, MiuixTheme.onSurface(),
                 new OnClickListener() {
                     @Override
@@ -418,71 +411,6 @@ public class FastbootPanel extends LinearLayout {
 
     // ---------------------------------------------------------------- 自定义分区刷写
 
-    /** 自定义分区名刷写。 */
-    private void customFlashDialog() {
-        if (session == null) {
-            toast("请先连接设备");
-            scan();
-            return;
-        }
-        final EditText partEt = new EditText(ctx);
-        partEt.setSingleLine(true);
-        partEt.setHint("分区名，如 boot / init_boot / vbmeta");
-
-        final EditText imgEt = new EditText(ctx);
-        imgEt.setSingleLine(true);
-        imgEt.setHint("/sdcard/Download/xxx.img");
-
-        LinearLayout box = new LinearLayout(ctx);
-        box.setOrientation(VERTICAL);
-
-        TextView warn = new TextView(ctx);
-        warn.setText("通过 USB 把镜像写入对方设备的分区。\n"
-                + "· 分区名必须准确（如 boot / init_boot / vbmeta）\n"
-                + "· 刷错分区会导致对方设备无法开机\n"
-                + "· 过程中不要拔线");
-        warn.setTextSize(12f);
-        warn.setTextColor(0xFFC0392B);
-        warn.setLineSpacing(dp(2), 1f);
-        box.addView(warn);
-
-        TextView l1 = label("分区名");
-        box.addView(l1);
-        box.addView(partEt);
-        TextView l2 = label("镜像文件路径（本机）");
-        box.addView(l2);
-        box.addView(imgEt);
-
-        MiuixWindow.builder(ctx)
-                .title("刷写分区")
-                .content(box)
-                .scrollable(false)
-                .positive("确认执行", new MiuixWindow.OnAction() {
-                    @Override
-                    public void onClick(android.app.Dialog d) {
-                        String name = partEt.getText().toString().trim();
-                        String path = imgEt.getText().toString().trim();
-                        if (name.isEmpty()) {
-                            toast("请填写分区名");
-                            return;
-                        }
-                        if (path.isEmpty()) {
-                            toast("请填写镜像路径");
-                            return;
-                        }
-                        File f = new File(path);
-                        if (!f.isFile()) {
-                            toast("镜像文件不存在");
-                            return;
-                        }
-                        FastbootHost.Part p = new FastbootHost.Part();
-                        p.name = name;
-                        doFlash(p, f);
-                    }
-                })
-                .negative("取消", null)
-                .show();
-    }
 
     private TextView label(String t) {
         TextView v = new TextView(ctx);
