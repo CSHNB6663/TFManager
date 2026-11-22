@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.rootterm.fm"
-    android:versionCode="40266"
-    android:versionName="5.7.6">
+    android:versionCode="40270"
+    android:versionName="5.8.0">
 
     <!-- minSdk 26：Android 8.0；targetSdk 37：面向 Android 17 -->
     <uses-sdk
@@ -71,6 +71,12 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="常驻快捷入口通知：点击打开文件管理终端" />
         </service>
+
+        <provider
+            android:name=".ApkProvider"
+            android:authorities="com.rootterm.fm.apk"
+            android:exported="false"
+            android:grantUriPermissions="true" />
 
         <receiver
             android:name=".BootReceiver"

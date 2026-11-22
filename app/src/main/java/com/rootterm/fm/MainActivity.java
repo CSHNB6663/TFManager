@@ -1345,7 +1345,7 @@ public class MainActivity extends Activity {
                 .positive("立即更新", new MiuixWindow.OnAction() {
                     @Override
                     public void onClick(android.app.Dialog d) {
-                        openUpdate(r.downloadUrl);
+                        downloadAndInstall(r.downloadUrl);
                     }
                 })
                 .negative("退出应用", new MiuixWindow.OnAction() {
@@ -1355,6 +1355,174 @@ public class MainActivity extends Activity {
                     }
                 })
                 .show();
+    }
+
+    /** 应用内下载 APK 并直接调起安装器（不跳浏览器）。 */
+    private void downloadAndInstall(final String url) {
+        if (url == null || url.trim().isEmpty()) {
+            toast("更新源没有提供 APK 下载地址");
+            return;
+        }
+        final TextView status = new TextView(this);
+        status.setText("准备下载…");
+        status.setTextSize(12.5f);
+        status.setTextColor(MiuixTheme.onSurface());
+
+        final android.widget.ProgressBar bar = new android.widget.ProgressBar(this, null,
+                android.R.attr.progressBarStyleHorizontal);
+        bar.setMax(1000);
+        bar.setProgress(0);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(6));
+        bp.topMargin = dp(10);
+
+        final TextView detail = new TextView(this);
+        detail.setTextSize(11f);
+        detail.setTextColor(MiuixTheme.onSurfaceVariant());
+        detail.setPadding(0, dp(8), 0, 0);
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.addView(status);
+        box.addView(bar, bp);
+        box.addView(detail);
+
+        final android.app.Dialog dlg = MiuixWindow.builder(this)
+                .title("正在下载更新")
+                .content(box)
+                .scrollable(false)
+                .cancelable(false)
+                .negative("后台下载", null)
+                .show();
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                java.io.File out = null;
+                try {
+                    java.io.File dir = new java.io.File(getFilesDir(), ApkProvider.DIR);
+                    if (!dir.exists() && !dir.mkdirs()) {
+                        throw new Exception("无法创建下载目录");
+                    }
+                    // 清掉旧包
+                    java.io.File[] olds = dir.listFiles();
+                    if (olds != null) {
+                        for (java.io.File f : olds) {
+                            if (f.getName().endsWith(".apk")) {
+                                f.delete();
+                            }
+                        }
+                    }
+                    out = new java.io.File(dir, "TFManager-update.apk");
+
+                    java.net.HttpURLConnection conn =
+                            (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+                    conn.setConnectTimeout(15000);
+                    conn.setReadTimeout(30000);
+                    conn.setInstanceFollowRedirects(true);
+                    conn.setRequestProperty("User-Agent", "TFManager/" + AppVersion.NAME);
+                    conn.connect();
+                    int code = conn.getResponseCode();
+                    if (code < 200 || code >= 300) {
+                        throw new Exception("HTTP " + code);
+                    }
+                    final long total = conn.getContentLength();
+                    java.io.InputStream in = conn.getInputStream();
+                    java.io.FileOutputStream fo = new java.io.FileOutputStream(out);
+                    long done = 0;
+                    long lastUi = 0;
+                    byte[] buf = new byte[65536];
+                    int n;
+                    try {
+                        while ((n = in.read(buf)) > 0) {
+                            fo.write(buf, 0, n);
+                            done += n;
+                            long now = System.currentTimeMillis();
+                            if (now - lastUi > 150) {
+                                lastUi = now;
+                                final long fd = done;
+                                final long ft = total;
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        if (ft > 0) {
+                                            bar.setProgress((int) (fd * 1000 / ft));
+                                            status.setText("已下载 " + (fd / 1024 / 1024)
+                                                    + " / " + (ft / 1024 / 1024) + " MB");
+                                        } else {
+                                            status.setText("已下载 " + (fd / 1024) + " KB");
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    } finally {
+                        try {
+                            fo.close();
+                        } catch (Throwable ignored) {
+                        }
+                        try {
+                            in.close();
+                        } catch (Throwable ignored) {
+                        }
+                    }
+                    conn.disconnect();
+                    AppLog.log("UPDATE", "downloaded " + done + " bytes → " + out.getAbsolutePath());
+
+                    final java.io.File apk = out;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            bar.setProgress(1000);
+                            status.setText("下载完成，正在调起安装器…");
+                            dlg.dismiss();
+                            installApk(apk);
+                        }
+                    });
+                } catch (final Throwable t) {
+                    AppLog.log("UPDATE", "download failed", t);
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            status.setText("下载失败：" + t.getMessage());
+                            status.setTextColor(MiuixTheme.error());
+                            detail.setText("可稍后重试，或到设置→检查更新再试一次");
+                        }
+                    });
+                }
+            }
+        }, "update-download").start();
+    }
+
+    /** 用 content:// 调起系统安装器。 */
+    private void installApk(java.io.File apk) {
+        try {
+            android.net.Uri uri = ApkProvider.uriFor(apk);
+            Intent i = new Intent(Intent.ACTION_VIEW);
+            i.setDataAndType(uri, "application/vnd.android.package-archive");
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            grantUriPermission(getPackageName(), uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(i);
+        } catch (Throwable t) {
+            AppLog.log("UPDATE", "install failed", t);
+            // 兜底：复制到下载目录，让用户手动点
+            try {
+                java.io.File dst = new java.io.File(
+                        "/sdcard/Download/TFManager-update.apk");
+                java.io.FileInputStream in = new java.io.FileInputStream(apk);
+                java.io.FileOutputStream fo = new java.io.FileOutputStream(dst);
+                byte[] b = new byte[65536];
+                int n;
+                while ((n = in.read(b)) > 0) {
+                    fo.write(b, 0, n);
+                }
+                in.close();
+                fo.close();
+                toast("已保存到 /sdcard/Download/TFManager-update.apk，请手动安装");
+            } catch (Throwable t2) {
+                toast("调起安装器失败：" + t.getMessage());
+            }
+        }
     }
 
     /** 打开下载地址（优先 APK 直链，其次更新源页）。 */
