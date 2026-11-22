@@ -608,6 +608,9 @@ public class MainActivity extends Activity {
         names.addView(name);
         names.addView(sub);
         head.addView(names, nlp);
+
+        // 右上角长条按钮：番茄小说下载
+        head.addView(buildNovelStrip());
         page.addView(head);
 
         // 状态卡：左右两个方块（左 = root 状态方块，右 = 终端方块）
@@ -1364,6 +1367,58 @@ public class MainActivity extends Activity {
                 .show();
     }
 
+    /** 首页右上角的长条按钮：番茄小说下载。 */
+    private View buildNovelStrip() {
+        MiuixGlass strip = new MiuixGlass(this);
+        strip.radiusDp(20);
+        strip.tint(0xFFEAF1FF, 0xFFDCE8FF);
+        strip.rim(0x40FFFFFF, 0x143482FF);
+        strip.specular(false);
+        strip.paddingDp(12, 8, 14, 8);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        strip.addView(row, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        ImageView icon = new ImageView(this);
+        int res = resId("ic_file_ebook");
+        if (res != 0) {
+            icon.setImageResource(res);
+            icon.setColorFilter(ThemeColors.ACCENT);
+        }
+        row.addView(icon, new LinearLayout.LayoutParams(dp(20), dp(20)));
+
+        TextView tv = new TextView(this);
+        tv.setText("番茄小说");
+        tv.setTextSize(13f);
+        tv.setTextColor(ThemeColors.ACCENT);
+        tv.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tlp.leftMargin = dp(7);
+        row.addView(tv, tlp);
+
+        TextView arrow = new TextView(this);
+        arrow.setText("›");
+        arrow.setTextSize(16f);
+        arrow.setTextColor(ThemeColors.ACCENT);
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        alp.leftMargin = dp(4);
+        row.addView(arrow, alp);
+
+        strip.setClickable(true);
+        strip.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showFanqieDialog();
+            }
+        });
+        return strip;
+    }
+
     // ------------------------------------------------------------ 设置页
 
     private LinearLayout buildSettingsPage() {
@@ -1458,17 +1513,7 @@ public class MainActivity extends Activity {
         about.infoRow("目标", "targetSdk 37（Android 17）");
         page.addView(about.build());
 
-        // ---------------- 番茄小说下载 ----------------
-        page.addView(gap(14));
-        MiuixPreference.Group novel = MiuixPreference.group(this, "小说");
-        novel.iconClickRow(resId("ic_file_ebook"), C_ACCENT,
-                "番茄小说下载", "粘贴链接导出 TXT", "", new MiuixPreference.OnClick() {
-                    @Override
-                    public void onClick(View v) {
-                        showFanqieDialog();
-                    }
-                });
-        page.addView(novel.build());
+
 
         TextView foot = UiConfig.text(this, "TF管理终端 · Miuix 玻璃风格", 10.5f, 0xFFA0A4AB);
         foot.setGravity(Gravity.CENTER);

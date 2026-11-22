@@ -175,6 +175,80 @@ public class FastbootPanel extends LinearLayout {
         lp.topMargin = dp(12);
         addView(mListHost, lp);
 
+        // 自定义命令行
+        TextView cmdTitle = new TextView(ctx);
+        cmdTitle.setText("命令行");
+        cmdTitle.setTextSize(12.5f);
+        cmdTitle.setTextColor(MiuixTheme.onSurfaceVariant());
+        cmdTitle.setPadding(dp(6), dp(16), dp(6), dp(6));
+        addView(cmdTitle);
+
+        MiuixCard cmdCard = new MiuixCard(ctx);
+        cmdCard.radiusDp(MiuixTheme.RADIUS_CARD);
+        cmdCard.fill(MiuixTheme.surface());
+        cmdCard.stroke(MiuixTheme.outline(), 0.8f);
+        LinearLayout cmdBox = new LinearLayout(ctx);
+        cmdBox.setOrientation(LinearLayout.VERTICAL);
+        cmdCard.addView(cmdBox, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        LinearLayout cmdRow = new LinearLayout(ctx);
+        cmdRow.setOrientation(LinearLayout.HORIZONTAL);
+        cmdRow.setGravity(Gravity.CENTER_VERTICAL);
+        cmdRow.setPadding(dp(12), dp(10), dp(12), dp(10));
+
+        final EditText cmdEt = new EditText(ctx);
+        cmdEt.setSingleLine(true);
+        cmdEt.setHint("输入 fastboot 命令，如 getvar all");
+        cmdEt.setTextSize(13f);
+        cmdEt.setTextColor(MiuixTheme.onSurface());
+        cmdEt.setHintTextColor(0xFF9AA0A6);
+        android.graphics.drawable.GradientDrawable ig =
+                new android.graphics.drawable.GradientDrawable();
+        ig.setColor(0xFFF2F4F8);
+        ig.setCornerRadius(dp(10));
+        ig.setStroke(Math.max(1, dp(0.8f)), 0xFFE3E7EE);
+        cmdEt.setBackground(ig);
+        cmdEt.setPadding(dp(10), dp(8), dp(10), dp(8));
+        cmdRow.addView(cmdEt, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView runBtn = miniButton("执行", MiuixTheme.primary(), 0xFFFFFFFF);
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rp.leftMargin = dp(8);
+        runBtn.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String cmd = cmdEt.getText().toString().trim();
+                if (cmd.isEmpty()) {
+                    toast("请输入命令");
+                    return;
+                }
+                if (session == null) {
+                    toast("请先连接设备");
+                    scan();
+                    return;
+                }
+                execCommand("执行命令", cmd);
+            }
+        });
+        cmdRow.addView(runBtn, rp);
+        cmdBox.addView(cmdRow);
+
+        // 常用前缀提示
+        TextView cmdTip = new TextView(ctx);
+        cmdTip.setText("常用：getvar all · oem device-info · flashing unlock · "
+                + "reboot · reboot-bootloader · erase:misc · set_active:a");
+        cmdTip.setTextSize(10f);
+        cmdTip.setTextColor(MiuixTheme.onSurfaceVariant());
+        cmdTip.setLineSpacing(dp(1), 1f);
+        cmdTip.setPadding(dp(14), 0, dp(14), dp(10));
+        cmdBox.addView(cmdTip);
+
+        addView(cmdCard, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
         // 快捷命令
         TextView quickTitle = new TextView(ctx);
         quickTitle.setText("快捷命令");
