@@ -636,9 +636,9 @@ public class MainActivity extends Activity {
         mHomeCheckBadge = new CouiCheckBadge(this);
         mHomeCheckBadge.setBadgeColor(0xFF34C759);
         mHomeCheckBadge.setVisibility(View.GONE);
-        FrameLayout.LayoutParams blp = new FrameLayout.LayoutParams(dp(116), dp(116));
+        FrameLayout.LayoutParams blp = new FrameLayout.LayoutParams(dp(96), dp(96));
         blp.gravity = Gravity.END | Gravity.BOTTOM;
-        blp.rightMargin = -dp(16);
+        blp.rightMargin = -dp(14);
         blp.bottomMargin = -dp(12);
         leftBox.addView(mHomeCheckBadge, blp);
 
@@ -646,8 +646,10 @@ public class MainActivity extends Activity {
         leftInner.setOrientation(LinearLayout.VERTICAL);
         leftInner.setGravity(Gravity.CENTER);
         leftInner.setPadding(dp(12), dp(12), dp(12), dp(12));
-        leftBox.addView(leftInner, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        FrameLayout.LayoutParams llp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        llp.gravity = Gravity.CENTER;
+        leftBox.addView(leftInner, llp);
 
         mHomeBadge = UiConfig.badge(this, "…", C_OK, 0x221FA35B);
         LinearLayout badgeRow = new LinearLayout(this);
@@ -694,8 +696,10 @@ public class MainActivity extends Activity {
         rightInner.setOrientation(LinearLayout.VERTICAL);
         rightInner.setGravity(Gravity.CENTER);
         rightInner.setPadding(dp(10), dp(10), dp(10), dp(10));
-        rightBox.addView(rightInner, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        FrameLayout.LayoutParams rlp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        rlp.gravity = Gravity.CENTER;
+        rightBox.addView(rightInner, rlp);
 
         ImageView termIcon = new ImageView(this);
         int termRes = getResources().getIdentifier("ic_nav_terminal", "drawable", getPackageName());
