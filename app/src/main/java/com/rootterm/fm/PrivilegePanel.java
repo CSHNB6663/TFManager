@@ -113,7 +113,12 @@ public class PrivilegePanel extends LinearLayout {
                 "打开提权工具", "已安装则直接启动", "", new MiuixPreference.OnClick() {
                     @Override
                     public void onClick(View v) {
-                        launchTool();
+                        warnThen(new Runnable() {
+                            @Override
+                            public void run() {
+                                launchTool();
+                            }
+                        });
                     }
                 });
         tool.iconClickRow(resId("ic_file_text"), ThemeColors.ACCENT,
@@ -121,6 +126,19 @@ public class PrivilegePanel extends LinearLayout {
                     @Override
                     public void onClick(View v) {
                         showLog();
+                    }
+                });
+        tool.iconClickRow(resId("ic_file_archive"), MiuixTheme.primary(),
+                "导出提权文件", "解压到 /sdcard/Download/TF提权", "",
+                new MiuixPreference.OnClick() {
+                    @Override
+                    public void onClick(View v) {
+                        warnThen(new Runnable() {
+                            @Override
+                            public void run() {
+                                exportAssets();
+                            }
+                        });
                     }
                 });
         tool.iconClickRow(resId("ic_nav_root"), MiuixTheme.success(),
@@ -138,11 +156,15 @@ public class PrivilegePanel extends LinearLayout {
         page.addView(gap(14));
         MiuixPreference.Group notice = MiuixPreference.group(ctx, "说明");
         TextView note = UiConfig.text(ctx,
-                "本 App 不内置内核提权载荷。\n\n"
-                        + "· 提权载荷与具体内核构建号死绑，偏移错一个字节就会内核 panic 或无法开机\n"
-                        + "· 载荷属第三方私有代码，随公开仓库分发有合规风险\n\n"
-                        + "本页只做环境检测与兼容性判断；实际提权请使用对应机型的专用工具，"
-                        + "并在操作前备份数据、确认内核版本完全一致。",
+                "本页已内置提权载荷文件（来源：OPEN-WINDOW / hr.h，经原作者授权）。\n\n"
+                        + "⚠ 重要风险：该载荷在提权成功后会「驻留」一个进程——"
+                        + "官方原话是 kill me = kernel panic。也就是说：\n"
+                        + "· 提权后不能强杀该进程、不能强制停止本 App\n"
+                        + "· 重启前请勿清理后台\n\n"
+                        + "因此本 App 只提供「导出文件」与「环境检测」，"
+                        + "不提供一键执行——避免普通用户误操作导致内核 panic。\n\n"
+                        + "导出后请用 root 通道（或原工具）按官方步骤执行，"
+                        + "并确认内核版本与档案完全一致。",
                 11.5f, MiuixTheme.onSurfaceVariant());
         note.setLineSpacing(dp(2), 1f);
         note.setPadding(dp(16), dp(12), dp(16), dp(14));
@@ -365,6 +387,131 @@ public class PrivilegePanel extends LinearLayout {
                 });
             }
         }, "priv-log").start();
+    }
+
+    // ---------------------------------------------------------------- 风险警告
+
+    /** 玩机风险警告：点「确认」才继续。 */
+    private void warnThen(final Runnable action) {
+        LinearLayout box = new LinearLayout(ctx);
+        box.setOrientation(LinearLayout.VERTICAL);
+
+        TextView head = UiConfig.text(ctx, "玩机有风险，操作需谨慎", 15f, 0xFFC0392B);
+        head.setTypeface(head.getTypeface(), android.graphics.Typeface.BOLD);
+        box.addView(head);
+
+        TextView body = UiConfig.text(ctx,
+                "\n· 内核提权属于高危操作，可能导致设备无法开机（变砖）\n"
+                        + "· 提权成功后进程会驻留内存，强制结束会触发内核 panic\n"
+                        + "· 偏移表必须与内核版本完全一致，错一个字节就会崩溃\n"
+                        + "· 可能导致数据丢失、保修失效、部分应用检测到 root 后拒绝运行\n\n"
+                        + "请先备份重要数据，并确认已理解上述风险。",
+                12f, 0xFF8A5A00);
+        body.setLineSpacing(dp(2), 1f);
+        box.addView(body);
+
+        MiuixWindow.builder(ctx)
+                .title("风险提示")
+                .content(box)
+                .scrollable(false)
+                .positive("我已知晓，继续", new MiuixWindow.OnAction() {
+                    @Override
+                    public void onClick(android.app.Dialog d) {
+                        if (action != null) {
+                            action.run();
+                        }
+                    }
+                })
+                .negative("取消", null)
+                .show();
+    }
+
+    // ---------------------------------------------------------------- 导出载荷
+
+    /** 把内置提权文件解压到 /sdcard/Download/TF提权。 */
+    private void exportAssets() {
+        final String dst = "/sdcard/Download/TF提权";
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                StringBuilder log = new StringBuilder();
+                try {
+                    java.io.File dir = new java.io.File(dst);
+                    if (!dir.exists() && !dir.mkdirs()) {
+                        throw new Exception("无法创建目录 " + dst);
+                    }
+                    // 主文件
+                    String[] files = {"libk80exp.so", "exploit-98260", "ksudpatch",
+                            "ksu_handoff.sh", "pstore_dump.sh"};
+                    for (String f : files) {
+                        copyAsset("priv/" + f, new java.io.File(dir, f));
+                        log.append("· ").append(f).append('\n');
+                    }
+                    // 偏移表
+                    java.io.File jdir = new java.io.File(dir, "json");
+                    jdir.mkdirs();
+                    String[] jsons = ctx.getAssets().list("priv/json");
+                    int n = 0;
+                    if (jsons != null) {
+                        for (String j : jsons) {
+                            copyAsset("priv/json/" + j, new java.io.File(jdir, j));
+                            n++;
+                        }
+                    }
+                    log.append("· json/ 共 ").append(n).append(" 个机型偏移表\n");
+                    final String msg = "已导出到：\n" + dst + "\n\n" + log
+                            + "\n提示：\n"
+                            + "· 执行前先核对内核版本与本机完全一致\n"
+                            + "· 提权成功后该进程会驻留，强杀会导致内核 panic\n"
+                            + "· 建议先备份数据";
+                    postUi(new Runnable() {
+                        @Override
+                        public void run() {
+                            MiuixWindow.builder(ctx)
+                                    .title("导出完成")
+                                    .message(msg)
+                                    .positive("知道了", null)
+                                    .show();
+                        }
+                    });
+                } catch (final Throwable t) {
+                    postUi(new Runnable() {
+                        @Override
+                        public void run() {
+                            MiuixWindow.builder(ctx)
+                                    .title("导出失败")
+                                    .message(String.valueOf(t.getMessage()))
+                                    .positive("知道了", null)
+                                    .show();
+                        }
+                    });
+                }
+            }
+        }, "priv-export").start();
+    }
+
+    private void copyAsset(String asset, java.io.File out) throws Exception {
+        java.io.InputStream in = ctx.getAssets().open(asset);
+        try {
+            java.io.FileOutputStream fo = new java.io.FileOutputStream(out);
+            try {
+                byte[] buf = new byte[16384];
+                int n;
+                while ((n = in.read(buf)) > 0) {
+                    fo.write(buf, 0, n);
+                }
+            } finally {
+                try {
+                    fo.close();
+                } catch (Throwable ignored) {
+                }
+            }
+        } finally {
+            try {
+                in.close();
+            } catch (Throwable ignored) {
+            }
+        }
     }
 
     // ---------------------------------------------------------------- 工具
