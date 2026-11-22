@@ -30,6 +30,17 @@ public final class UiConfig {
     private UiConfig() {
     }
 
+    /** 脚本运行兼容模式：不注入 LD_LIBRARY_PATH/TMPDIR，用系统 sh。 */
+    public static boolean compatMode(Context c) {
+        return c.getSharedPreferences("ui", Context.MODE_PRIVATE)
+                .getBoolean("run_compat", false);
+    }
+
+    public static void setCompatMode(Context c, boolean on) {
+        c.getSharedPreferences("ui", Context.MODE_PRIVATE)
+                .edit().putBoolean("run_compat", on).apply();
+    }
+
     public static int dp(Context c, float v) {
         return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v,
                 c.getResources().getDisplayMetrics()));

@@ -1529,9 +1529,17 @@ public class FileBrowserPanel extends LinearLayout {
         if (slash > 0) {
             dir = path.substring(0, slash);
         }
-        // 给动态链接库留路径（驱动加载器常依赖 vendor/lib64 等）
-        // 有些加载器会用 TMPDIR/TEMP 下载临时文件，指向文件所在目录（可写）
-        String cd = "cd " + Shell.quote(dir) + " && export LD_LIBRARY_PATH=/vendor/lib64:/system/lib64:/system/lib:/vendor/lib:" + Shell.quote(dir) + " TMPDIR=" + Shell.quote(dir) + " TEMP=" + Shell.quote(dir) + " && ";
+        // 兼容模式：完全不注入环境变量、用系统 sh —— 与常见终端（MT管理器/Termux）一致，
+        // 可解决「别的终端能跑、这里跑不了」的分支差异（PTY/isatty、BASH_VERSION、LD_LIBRARY_PATH）。
+        boolean compat = UiConfig.compatMode(ctx);
+        String cd = "cd " + Shell.quote(dir) + " && ";
+        if (!compat) {
+            // 给动态链接库留路径（驱动加载器常依赖 vendor/lib64 等）
+            // 有些加载器会用 TMPDIR/TEMP 下载临时文件，指向文件所在目录（可写）
+            cd += "export LD_LIBRARY_PATH=/vendor/lib64:/system/lib64:/system/lib:/vendor/lib:"
+                    + Shell.quote(dir) + " TMPDIR=" + Shell.quote(dir)
+                    + " TEMP=" + Shell.quote(dir) + " && ";
+        }
 
         String magic = Shell.execSync(
                 "head -c 4 " + Shell.quote(path) + " 2>/dev/null | od -An -tx1",
@@ -1539,6 +1547,10 @@ public class FileBrowserPanel extends LinearLayout {
         if (magic.startsWith("7f454c46")) {
             String name = path.substring(path.lastIndexOf('/') + 1);
             return cd + "chmod 711 " + Shell.quote(name) + " && ./" + Shell.quote(name) + " 2>&1";
+        }
+        if (compat) {
+            // 兼容模式：直接用系统 sh 跑，不引入内置 bash 的库路径
+            return cd + "/system/bin/sh " + Shell.quote(path) + " 2>&1";
         }
         return cd + BashKit.command(pickInterpreter(path), path);
     }

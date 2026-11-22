@@ -1723,6 +1723,20 @@ public class MainActivity extends Activity {
         page.addView(gap(14));
         page.addView(buildUpdateCard());
 
+        // ---------------- 运行方式 ----------------
+        page.addView(gap(14));
+        MiuixPreference.Group runMode = MiuixPreference.group(this, "脚本运行");
+        runMode.switchRow("兼容模式（推荐）",
+                "不注入环境变量、用系统 sh，与常见终端一致；个别加载器仍需关闭",
+                UiConfig.compatMode(this), new MiuixPreference.OnSwitch() {
+                    @Override
+                    public void onChanged(boolean checked) {
+                        UiConfig.setCompatMode(MainActivity.this, checked);
+                        toast(checked ? "已切换：系统 sh（兼容）" : "已切换：内置 bash + 环境注入");
+                    }
+                });
+        page.addView(runMode.build());
+
         // ---------------- 云端配置 ----------------
         page.addView(gap(14));
         MiuixPreference.Group remote = MiuixPreference.group(this, "云端配置（热更新）");
