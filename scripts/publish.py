@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -94,9 +95,17 @@ def main():
     subprocess.run(["git", "remote", "remove", "origin"], cwd=ROOT, check=False)
     subprocess.run(["git", "remote", "add", "origin", remote], cwd=ROOT, check=True)
     print("== 推送代码…")
-    p = subprocess.run(["git", "push", "-u", "origin", branch, "--force"], cwd=ROOT, env=env)
-    if p.returncode != 0:
-        print("  [失败] git push")
+    pushed = False
+    for attempt in range(1, 7):
+        p = subprocess.run(["git", "push", "-u", "origin", branch, "--force"],
+                           cwd=ROOT, env=env, capture_output=True, text=True)
+        if p.returncode == 0:
+            pushed = True
+            break
+        print("  push 第 %d 次失败：%s" % (attempt, (p.stderr or "").strip()[:120]))
+        time.sleep(4)
+    if not pushed:
+        print("  [失败] git push（github.com 被墙/超时）——可开启 VPN 重试")
         return 1
 
     # 3) 找 APK
@@ -149,11 +158,19 @@ def main():
         blob = f.read()
     up = "https://uploads.github.com/repos/%s/%s/releases/%s/assets?name=%s" % (
         login, REPO, rel_id, apk_name)
-    code, data = call("POST", up, raw_bytes=blob,
-                      content_type="application/vnd.android.package-archive")
-    if not show(code, data, "上传 APK"):
+    url = ""
+    for attempt in range(1, 9):
+        code, data = call("POST", up, raw_bytes=blob,
+                          content_type="application/vnd.android.package-archive")
+        if 200 <= code < 300:
+            url = json.loads(data).get("browser_download_url", "")
+            print("  上传成功（第 %d 次）" % attempt)
+            break
+        print("  上传第 %d 次失败：HTTP %s" % (attempt, code))
+        time.sleep(3)
+    if not url:
+        print("  [失败] APK 上传失败（uploads.github.com 超时）——可开启 VPN 重试")
         return 1
-    url = json.loads(data).get("browser_download_url", "")
 
     print()
     print("=" * 56)
