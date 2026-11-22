@@ -13,6 +13,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.miuix.glass.MiuixGlass;
@@ -31,7 +32,7 @@ import java.util.Locale;
 /**
  * 数据线刷写（Fastboot 主机模式）。
  *
- * <p>通过 OTG 连接另一台处于 fastboot 模式的手机，读取分区、刷写镜像、尝试备份分区。</p>
+ * <p>通过 OTG 连接另一台处于 fastboot 模式的手机，刷写镜像、执行快捷命令。</p>
  */
 public class FastbootPanel extends LinearLayout {
 
@@ -141,13 +142,6 @@ public class FastbootPanel extends LinearLayout {
         bp.topMargin = dp(11);
         col.addView(btns, bp);
 
-        btns.addView(actionButton("读取分区", MiuixTheme.primaryContainer(),
-                ThemeColors.ON_ACCENT_CONTAINER, new OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        loadPartitions();
-                    }
-                }));
         btns.addView(actionButton("刷写分区…", 0x14E8481F, MiuixTheme.error(),
                 new OnClickListener() {
                     @Override
@@ -175,6 +169,7 @@ public class FastbootPanel extends LinearLayout {
         // 分区列表
         mListHost = new LinearLayout(ctx);
         mListHost.setOrientation(VERTICAL);
+        mListHost.setVisibility(GONE);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.topMargin = dp(12);
@@ -288,7 +283,6 @@ public class FastbootPanel extends LinearLayout {
                             mInfo.setText(FastbootHost.describe(d)
                                     + (info.isEmpty() ? "" : " · " + firstLine(info)));
                             mHint.setText(info);
-                            loadPartitions();
                         }
                     });
                 } catch (final Throwable t) {
@@ -319,128 +313,7 @@ public class FastbootPanel extends LinearLayout {
         }
     }
 
-    // ---------------------------------------------------------------- 分区
-
-    private void loadPartitions() {
-        if (session == null) {
-            toast("请先连接设备");
-            scan();
-            return;
-        }
-        if (busy) {
-            return;
-        }
-        busy = true;
-        mHint.setText("正在读取分区…");
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                final List<FastbootHost.Part> list = new ArrayList<FastbootHost.Part>();
-                String err = null;
-                try {
-                    list.addAll(session.partitions());
-                } catch (Throwable t) {
-                    err = String.valueOf(t.getMessage());
-                }
-                final String ferr = err;
-                post(new Runnable() {
-                    @Override
-                    public void run() {
-                        busy = false;
-                        parts.clear();
-                        parts.addAll(list);
-                        renderParts(ferr);
-                    }
-                });
-            }
-        }, "fb-parts").start();
-    }
-
-    private void renderParts(String err) {
-        mListHost.removeAllViews();
-        if (err != null) {
-            mHint.setText("读取分区失败：" + err);
-            return;
-        }
-        if (parts.isEmpty()) {
-            mHint.setText("未读到分区信息（该 bootloader 不支持 getvar all）\n"
-                    + "已切换为「常用分区」模式：点右侧「刷写」直接刷，"
-                    + "或用上方「刷写分区…」自定义分区名。");
-            renderPresetParts();
-            return;
-        }
-        long total = 0;
-        for (FastbootHost.Part p : parts) {
-            total += p.size;
-        }
-        mHint.setText("共 " + parts.size() + " 个分区 · 合计 " + human(total)
-                + " · 备份/刷写均通过 USB 操作对方设备");
-
-        MiuixCard card = new MiuixCard(ctx);
-        card.radiusDp(MiuixTheme.RADIUS_CARD);
-        card.fill(MiuixTheme.surface());
-        card.stroke(MiuixTheme.outline(), 0.8f);
-
-        LinearLayout col = new LinearLayout(ctx);
-        col.setOrientation(VERTICAL);
-        card.addView(col, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        for (int i = 0; i < parts.size(); i++) {
-            final FastbootHost.Part p = parts.get(i);
-            if (i > 0) {
-                View line = new View(ctx);
-                line.setBackgroundColor(MiuixTheme.outline());
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(0.7f)));
-                lp.leftMargin = dp(14);
-                col.addView(line, lp);
-            }
-            col.addView(partRow(p), new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        }
-        mListHost.addView(card, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-    }
-
-    /** 常用分区名（getvar all 不可用时兜底）。 */
-    private static final String[] PRESET_PARTS = {
-            "boot", "init_boot", "vendor_boot", "dtbo", "vbmeta", "vbmeta_system",
-            "recovery", "super", "system", "vendor", "product", "odm",
-            "userdata", "metadata", "modem", "persist", "misc", "cache",
-            "boot_a", "boot_b", "init_boot_a", "init_boot_b", "vbmeta_a", "vbmeta_b",
-    };
-
-    /** 渲染常用分区（只提供刷写，不提供备份）。 */
-    private void renderPresetParts() {
-        mListHost.removeAllViews();
-        MiuixCard card = new MiuixCard(ctx);
-        card.radiusDp(MiuixTheme.RADIUS_CARD);
-        card.fill(MiuixTheme.surface());
-        card.stroke(MiuixTheme.outline(), 0.8f);
-
-        LinearLayout col = new LinearLayout(ctx);
-        col.setOrientation(VERTICAL);
-        card.addView(col, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        for (int i = 0; i < PRESET_PARTS.length; i++) {
-            final FastbootHost.Part p = new FastbootHost.Part();
-            p.name = PRESET_PARTS[i];
-            if (i > 0) {
-                View line = new View(ctx);
-                line.setBackgroundColor(MiuixTheme.outline());
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(0.7f)));
-                lp.leftMargin = dp(14);
-                col.addView(line, lp);
-            }
-            col.addView(partRow(p), new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        }
-        mListHost.addView(card, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-    }
+    // ---------------------------------------------------------------- 自定义分区刷写
 
     /** 自定义分区名刷写。 */
     private void customFlashDialog() {
@@ -462,7 +335,7 @@ public class FastbootPanel extends LinearLayout {
 
         TextView warn = new TextView(ctx);
         warn.setText("通过 USB 把镜像写入对方设备的分区。\n"
-                + "· 分区名必须准确（可用「读取分区」或 getvar all 确认）\n"
+                + "· 分区名必须准确（如 boot / init_boot / vbmeta）\n"
                 + "· 刷错分区会导致对方设备无法开机\n"
                 + "· 过程中不要拔线");
         warn.setTextSize(12f);
@@ -525,6 +398,10 @@ public class FastbootPanel extends LinearLayout {
         mQuickHost.removeAllViews();
 
         final String[][] cmds = {
+                {"刷写 boot", "FLASH:boot", "选镜像后直接刷入 boot 分区"},
+                {"刷写 init_boot", "FLASH:init_boot", "选镜像后直接刷入 init_boot 分区"},
+                {"刷写 vbmeta", "FLASH:vbmeta", "选镜像后直接刷入 vbmeta 分区"},
+                {"刷写 recovery", "FLASH:recovery", "选镜像后直接刷入 recovery 分区"},
                 {"重启到系统", "reboot", "对方设备正常重启"},
                 {"重启到 bootloader", "reboot-bootloader", "回到 fastboot 模式"},
                 {"查询当前槽位", "getvar:current-slot", "A/B 设备当前 slot"},
@@ -612,6 +489,10 @@ public class FastbootPanel extends LinearLayout {
             scan();
             return;
         }
+        if (cmd != null && cmd.startsWith("FLASH:")) {
+            pickImageDialog(cmd.substring(6), "/sdcard/Download");
+            return;
+        }
         boolean danger = cmd.startsWith("erase:") || cmd.contains("unlock");
         MiuixWindow.builder(ctx)
                 .title(title)
@@ -625,6 +506,181 @@ public class FastbootPanel extends LinearLayout {
                             return;
                         }
                         execCommand(title, cmd);
+                    }
+                })
+                .negative("取消", null)
+                .show();
+    }
+
+    // ---------------------------------------------------------------- 选镜像并刷写
+
+    /** 内置文件选择器：选 .img/.bin 后直接刷写指定分区。 */
+    private void pickImageDialog(final String part, final String startDir) {
+        if (session == null) {
+            toast("请先连接设备");
+            scan();
+            return;
+        }
+        final String dir = startDir == null || startDir.isEmpty() ? "/sdcard" : startDir;
+
+        LinearLayout box = new LinearLayout(ctx);
+        box.setOrientation(VERTICAL);
+
+        final TextView pathView = new TextView(ctx);
+        pathView.setText(dir);
+        pathView.setTextSize(11f);
+        pathView.setTextColor(MiuixTheme.onSurfaceVariant());
+        pathView.setSingleLine(true);
+        pathView.setEllipsize(android.text.TextUtils.TruncateAt.START);
+        box.addView(pathView);
+
+        TextView tip = new TextView(ctx);
+        tip.setText("选择要刷入 " + part + " 分区的镜像（.img / .bin）");
+        tip.setTextSize(11f);
+        tip.setTextColor(MiuixTheme.onSurfaceVariant());
+        tip.setPadding(0, dp(4), 0, dp(6));
+        box.addView(tip);
+
+        ScrollView sv = new ScrollView(ctx);
+        LinearLayout listBox = new LinearLayout(ctx);
+        listBox.setOrientation(VERTICAL);
+        sv.addView(listBox);
+        box.addView(sv, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(320)));
+
+        final android.app.Dialog dlg = MiuixWindow.builder(ctx)
+                .title("选择镜像 · " + part)
+                .content(box)
+                .scrollable(false)
+                .negative("取消", null)
+                .show();
+
+        fillPicker(listBox, pathView, dir, part, dlg);
+    }
+
+    /** 填充选择器内容。 */
+    private void fillPicker(final LinearLayout listBox, final TextView pathView,
+                            final String dir, final String part,
+                            final android.app.Dialog dlg) {
+        listBox.removeAllViews();
+        pathView.setText(dir);
+
+        if (!"/".equals(dir) && !"/sdcard".equals(dir)) {
+            listBox.addView(pickerRow("⬆  上级目录", true, new OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    int i = dir.lastIndexOf('/');
+                    fillPicker(listBox, pathView, i <= 0 ? "/" : dir.substring(0, i),
+                            part, dlg);
+                }
+            }));
+        }
+        if ("/sdcard/Download".equals(dir) || "/sdcard".equals(dir)) {
+            listBox.addView(pickerRow("📁 TF分区备份", true, new OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    fillPicker(listBox, pathView, "/sdcard/Download/TF分区备份", part, dlg);
+                }
+            }));
+        }
+
+        File d = new File(dir);
+        File[] fs = d.listFiles();
+        if (fs == null) {
+            listBox.addView(pickerRow("（无法读取该目录）", false, null));
+            return;
+        }
+        java.util.Arrays.sort(fs, new java.util.Comparator<File>() {
+            @Override
+            public int compare(File a, File b) {
+                if (a.isDirectory() != b.isDirectory()) {
+                    return a.isDirectory() ? -1 : 1;
+                }
+                return a.getName().compareToIgnoreCase(b.getName());
+            }
+        });
+
+        int shown = 0;
+        for (final File f : fs) {
+            String n = f.getName();
+            if (n.startsWith(".")) {
+                continue;
+            }
+            if (f.isDirectory()) {
+                if (shown++ > 200) {
+                    break;
+                }
+                listBox.addView(pickerRow("📁 " + n, true, new OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        fillPicker(listBox, pathView, f.getAbsolutePath(), part, dlg);
+                    }
+                }));
+            } else {
+                String ln = n.toLowerCase(Locale.US);
+                if (!ln.endsWith(".img") && !ln.endsWith(".bin")) {
+                    continue;
+                }
+                if (shown++ > 200) {
+                    break;
+                }
+                listBox.addView(pickerRow("💾 " + n + "   " + human(f.length()), true,
+                        new OnClickListener() {
+                            @Override
+                            public void onClick(View v) {
+                                dlg.dismiss();
+                                confirmFlashFile(part, f);
+                            }
+                        }));
+            }
+        }
+        if (shown == 0) {
+            listBox.addView(pickerRow("（此目录没有 .img / .bin 镜像）", false, null));
+        }
+    }
+
+    private View pickerRow(String text, boolean clickable, OnClickListener l) {
+        TextView t = new TextView(ctx);
+        t.setText(text);
+        t.setTextSize(13f);
+        t.setTextColor(clickable ? MiuixTheme.onSurface() : MiuixTheme.onSurfaceVariant());
+        t.setPadding(dp(6), dp(10), dp(6), dp(10));
+        t.setSingleLine(true);
+        t.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+        if (clickable && l != null) {
+            t.setClickable(true);
+            t.setOnClickListener(l);
+        }
+        return t;
+    }
+
+    /** 选好文件后：警告 + 确认执行。 */
+    private void confirmFlashFile(final String part, final File img) {
+        LinearLayout box = new LinearLayout(ctx);
+        box.setOrientation(VERTICAL);
+
+        TextView warn = new TextView(ctx);
+        warn.setText("即将把\n" + img.getAbsolutePath() + "\n（" + human(img.length())
+                + "）\n\n写入对方设备的分区  " + part + "\n\n"
+                + "· 刷错分区会导致对方设备无法开机\n"
+                + "· 过程中不要拔线、不要压到数据线\n"
+                + "· 此操作不可撤销");
+        warn.setTextSize(12f);
+        warn.setTextColor(0xFFC0392B);
+        warn.setLineSpacing(dp(2), 1f);
+        warn.setTextIsSelectable(true);
+        box.addView(warn);
+
+        MiuixWindow.builder(ctx)
+                .title("警告")
+                .content(box)
+                .scrollable(false)
+                .positive("确认执行", new MiuixWindow.OnAction() {
+                    @Override
+                    public void onClick(android.app.Dialog d) {
+                        FastbootHost.Part p = new FastbootHost.Part();
+                        p.name = part;
+                        doFlash(p, img);
                     }
                 })
                 .negative("取消", null)
@@ -752,59 +808,6 @@ public class FastbootPanel extends LinearLayout {
                 });
             }
         }, "fb-cmd").start();
-    }
-
-    private View partRow(final FastbootHost.Part p) {
-        LinearLayout row = new LinearLayout(ctx);
-        row.setOrientation(HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(14), dp(11), dp(12), dp(11));
-
-        LinearLayout texts = new LinearLayout(ctx);
-        texts.setOrientation(VERTICAL);
-        TextView name = new TextView(ctx);
-        name.setText(p.name);
-        name.setTextSize(14.5f);
-        name.setTextColor(MiuixTheme.onSurface());
-        name.setSingleLine(true);
-        name.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        texts.addView(name);
-        TextView sub = new TextView(ctx);
-        sub.setText(p.size > 0
-                ? (human(p.size) + (p.type.isEmpty() ? "" : " · " + p.type))
-                : "常用分区 · 点「刷写」选择镜像");
-        sub.setTextSize(10.5f);
-        sub.setTextColor(MiuixTheme.onSurfaceVariant());
-        texts.addView(sub);
-        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        tp.rightMargin = dp(8);
-        row.addView(texts, tp);
-
-        if (p.size > 0) {
-            TextView backup = miniButton("备份", MiuixTheme.primaryContainer(),
-                    ThemeColors.ON_ACCENT_CONTAINER);
-            backup.setOnClickListener(new OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    backupPartition(p);
-                }
-            });
-            row.addView(backup);
-        }
-
-        TextView flash = miniButton("刷写", 0x14E8481F, MiuixTheme.error());
-        LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        fp.leftMargin = dp(6);
-        flash.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                flashPartition(p);
-            }
-        });
-        row.addView(flash, fp);
-        return row;
     }
 
     private TextView miniButton(String text, int bgColor, int fgColor) {
@@ -970,101 +973,6 @@ public class FastbootPanel extends LinearLayout {
     }
 
     // ---------------------------------------------------------------- 备份
-
-    private void backupPartition(final FastbootHost.Part p) {
-        if (session == null) {
-            toast("请先连接设备");
-            return;
-        }
-        final String out = OUT_BACKUP + "/" + p.name + "-"
-                + new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
-                .format(new java.util.Date()) + ".img";
-
-        LinearLayout box = new LinearLayout(ctx);
-        box.setOrientation(VERTICAL);
-
-        TextView warn = new TextView(ctx);
-        warn.setText("将尝试从对方设备读回分区 " + p.name + "（" + human(p.size) + "）"
-                + "并保存到：\n" + out + "\n\n"
-                + "注意：fastboot 标准协议没有「读分区」命令，"
-                + "只有部分 bootloader 提供 oem dump / fetch 等扩展。"
-                + "若不支持会提示改用本机 root 备份。");
-        warn.setTextSize(12f);
-        warn.setTextColor(0xFF8A5A00);
-        warn.setLineSpacing(dp(2), 1f);
-        warn.setTextIsSelectable(true);
-        box.addView(warn);
-
-        MiuixWindow.builder(ctx)
-                .title("警告")
-                .content(box)
-                .scrollable(false)
-                .positive("确认执行", new MiuixWindow.OnAction() {
-                    @Override
-                    public void onClick(android.app.Dialog d) {
-                        doBackup(p, out);
-                    }
-                })
-                .negative("取消", null)
-                .show();
-    }
-
-    private void doBackup(final FastbootHost.Part p, final String out) {
-        final TextView status = new TextView(ctx);
-        status.setText("正在读回分区…");
-        status.setTextSize(12.5f);
-        status.setTextColor(MiuixTheme.onSurface());
-
-        LinearLayout box = new LinearLayout(ctx);
-        box.setOrientation(VERTICAL);
-        box.addView(status);
-
-        MiuixWindow.builder(ctx)
-                .title("备份 " + p.name)
-                .content(box)
-                .scrollable(false)
-                .cancelable(false)
-                .negative("后台继续", null)
-                .show();
-
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    new File(OUT_BACKUP).mkdirs();
-                    session.readPartition(p.name, new File(out),
-                            new FastbootHost.Progress() {
-                                @Override
-                                public void onProgress(long done, long total, String msg) {
-                                    final String m = msg == null
-                                            ? ("已读取 " + human(done)) : msg;
-                                    post(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            status.setText(m);
-                                        }
-                                    });
-                                }
-                            });
-                    post(new Runnable() {
-                        @Override
-                        public void run() {
-                            status.setText("备份完成：\n" + out);
-                            status.setTextColor(MiuixTheme.success());
-                        }
-                    });
-                } catch (final Throwable t) {
-                    post(new Runnable() {
-                        @Override
-                        public void run() {
-                            status.setText(String.valueOf(t.getMessage()));
-                            status.setTextColor(MiuixTheme.error());
-                        }
-                    });
-                }
-            }
-        }, "fb-backup").start();
-    }
 
     // ---------------------------------------------------------------- 重启
 
