@@ -242,7 +242,7 @@ public final class FanqieDownloader {
         }
         if (content != null) {
             String raw = jsonUnescape(content);
-            c.text = stripHtml(raw);
+            c.text = FanqieFontMap.fix(stripHtml(raw));   // 还原字体混淆字符
         }
         if (c.text == null) {
             c.text = "";

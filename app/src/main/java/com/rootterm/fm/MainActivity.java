@@ -1938,8 +1938,8 @@ public class MainActivity extends Activity {
         final android.widget.EditText numEt = new android.widget.EditText(this);
         numEt.setSingleLine(true);
         numEt.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-        numEt.setText("20");
-        numEt.setHint("导出章节数（默认 20）");
+        numEt.setText("50");
+        numEt.setHint("导出章节数，0 = 全部（默认 50）");
         styleInput(numEt);
 
         LinearLayout box = new LinearLayout(this);
@@ -2006,16 +2006,19 @@ public class MainActivity extends Activity {
                             toast("请粘贴书籍链接");
                             return;
                         }
-                        int n = 20;
+                        int n = 50;
                         try {
                             n = Integer.parseInt(numEt.getText().toString().trim());
                         } catch (Throwable ignored) {
                         }
-                        if (n <= 0) {
-                            n = 20;
+                        if (n < 0) {
+                            n = 50;
                         }
-                        if (n > 200) {
-                            n = 200;
+                        if (n > 2000) {
+                            n = 2000;
+                        }
+                        if (n == 0) {
+                            n = 99999;   // 0 = 全部
                         }
                         startFanqieDownload(link, n, FanqieSession.cookie(MainActivity.this));
                     }
