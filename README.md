@@ -5,7 +5,9 @@
 - **包名**：`com.rootterm.fm`
 - **版本**：见 `app/src/main/java/com/rootterm/fm/AppVersion.java`
 - **兼容**：minSdk 26（Android 8.0）/ targetSdk 37（Android 17）/ compileSdk 36
-- **界面**：Miuix / KernelSU 风格（Monet 动态取色、居中胶囊底栏、卡片列表）
+- **界面**：按 [compose-miuix-ui/miuix](https://github.com/compose-miuix-ui/miuix)
+  模块划分重写的 Miuix 液态玻璃风格（固定玻璃蓝配色 + 超椭圆连续圆角 +
+  悬浮玻璃胶囊底栏 + 玻璃卡片列表）
 
 ## 功能
 
@@ -72,3 +74,26 @@ scripts/publish.sh                   # 一键创建仓库 + push + 发布 Releas
   随 APK 一并分发仅用于运行脚本。
 - UI 参考 [KernelSU-Style-UI-Kit](https://github.com/chenaizhang/KernelSU-Style-UI-Kit)（GPL-3.0）
   与 [Miuix](https://github.com/compose-miuix-ui/miuix) 的视觉规格，未直接引入其代码。
+
+## Miuix 模块（framework-only 复刻）
+
+按上游仓库的模块边界，把 Miuix 风格拆成独立包，全部位于
+`app/src/main/java/com/miuix/`：
+
+| 模块 | 包 | 职责 |
+| --- | --- | --- |
+| `miuix-ui` | `com.miuix.ui` | 基础组件：`MiuixTheme` 语义色 / 字号 / 圆角，`MiuixCard` 卡片表面 |
+| `miuix-preference` | `com.miuix.pref` | 设置项分组、开关行、点击行、信息行（分组卡片即液态玻璃） |
+| `miuix-icons` | `com.miuix.icons` | 纯线条图标 |
+| `miuix-glass-icons` | `com.miuix.glassicons` | 嵌在玻璃方块里的图标（关于页头部、设置项前置图标） |
+| `miuix-blur` | `com.miuix.blur` | 系统窗口模糊 + 降采样/盒式模糊磨砂底 |
+| `miuix-squircle` | `com.miuix.squircle` | 超椭圆连续圆角路径与子 View 裁剪 |
+| `miuix-material` | `com.miuix.material` | 玻璃材质参数：染色、折射、镜面、棱边、厚度（CLEAR / LIQUID / ACCENT） |
+| `miuix-glass` | `com.miuix.glass` | **液态玻璃组件**：磨砂底 + 折射色带 + 染色 + 镜面光带 + 高光棱 + 超椭圆裁剪 |
+| `miuix-nav` | `com.miuix.nav` | 底部玻璃导航胶囊、玻璃选中指示块、拖动切页、自动磨砂 |
+| `miuix-window` | `com.miuix.window` | 桌面式玻璃标题栏 / 悬浮玻璃对话框窗口 / 自由窗口启动辅助 |
+
+上游是 Compose Multiplatform 库，本项目是 Android framework-only Java 工程，
+因此各模块按「同名、同职责」复刻视觉与 API 语义，而非引入其 Kotlin 代码。
+所有卡片（首页、设置、文件列表、分区、Fastboot、ADB）、底栏、关于页、
+弹窗与按钮统一使用 `miuix-glass`；玻璃材质参数集中在 `miuix-material`。

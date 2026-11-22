@@ -486,6 +486,13 @@ public class TerminalPanel extends LinearLayout {
         }, 120);
     }
 
+    /** 键盘弹出/收起时由宿主通知，滚动到最新输出。 */
+    public void onImeChanged(boolean shown) {
+        if (shown) {
+            scrollToBottom();
+        }
+    }
+
     /** 供宿主在显示终端时调用，确保输入行可输入。 */
     public void focusInput() {
         showKeyboard();

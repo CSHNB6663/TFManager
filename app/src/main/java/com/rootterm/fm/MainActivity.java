@@ -334,6 +334,26 @@ public class MainActivity extends Activity {
         // 全屏终端（覆盖整个页面区）
         mTermCard = buildTerminalCard();
         mTermCard.setVisibility(View.GONE);
+        // 键盘弹出时给终端加底部内边距，让输入框浮在键盘上方
+        mTermCard.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+            @Override
+            public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+                int ime = 0;
+                if (Build.VERSION.SDK_INT >= 30) {
+                    ime = insets.getInsets(WindowInsets.Type.ime()).bottom;
+                } else {
+                    ime = insets.getSystemWindowInsetBottom();
+                }
+                int target = mTermVisible ? ime : 0;
+                if (v.getPaddingBottom() != target) {
+                    v.setPadding(0, 0, 0, target);
+                    if (mTerminal != null) {
+                        mTerminal.onImeChanged(target > 0);
+                    }
+                }
+                return insets;
+            }
+        });
         mPages.addView(mTermCard, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
@@ -346,6 +366,10 @@ public class MainActivity extends Activity {
 
         mNavContainer = buildBottomNav();   // 高度与 gravity 由 buildBottomNav 自己设定
         root.addView(mNavContainer);
+        // miuix-nav 液态玻璃：持续以页面内容为磨砂底
+        if (mMiuixNav != null) {
+            mMiuixNav.autoBackdrop(mPages);
+        }
 
         // 番茄登录浮层放最上层（不属于 SwipeBox，手势不被拦截）
         if (mFanqieCard != null) {
@@ -461,7 +485,7 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 if (mMiuixNav != null && mPages != null) {
-                    mMiuixNav.captureBackdrop(mPages);
+                    mMiuixNav.autoBackdrop(mPages);
                 }
             }
         }, 260);
@@ -776,14 +800,19 @@ public class MainActivity extends Activity {
         makeInfoRow(devCard, "系统版本", "Android " + Build.VERSION.RELEASE
                 + " · SDK " + Build.VERSION.SDK_INT);
 
-        // 操作卡
+        // 操作卡（miuix-glass 液态玻璃承载）
+        MiuixCard actionsCard = MiuixCard.create(this);
+        actionsCard.radiusDp(MiuixTheme.RADIUS_CARD);
+        actionsCard.paddingDp(0, 0, 0, 0);
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.VERTICAL);
-        actions.setBackground(cardBgStroke(C_CARD, 18, C_LINE));
+        actionsCard.addView(actions, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
         LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         alp.topMargin = dp(14);
-        page.addView(actions, alp);
+        page.addView(actionsCard, alp);
 
         actions.addView(makeActionRow("ic_nav_terminal", "终端", "打开全屏终端", new Runnable() {
             @Override
