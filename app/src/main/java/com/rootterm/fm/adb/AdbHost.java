@@ -49,6 +49,7 @@ public final class AdbHost {
     private static final int A_OKAY = 0x59414B4F;
     private static final int A_CLSE = 0x45534C43;
     private static final int A_WRTE = 0x45545257;
+    private static final int A_STLS = 0x534C5453;
 
     private static final int AUTH_TOKEN = 1;
     private static final int AUTH_SIGNATURE = 2;
@@ -157,9 +158,30 @@ public final class AdbHost {
         if (conn == null) {
             throw new IOException("无法打开 USB 设备");
         }
-        if (!conn.claimInterface(target, true)) {
+        // claim 接口；部分设备需要先 SET_CONFIGURATION
+        boolean claimed = false;
+        try {
+            claimed = conn.claimInterface(target, true);
+        } catch (Throwable ignored) {
+        }
+        if (!claimed) {
+            for (int ci = 0; ci < d.getConfigurationCount(); ci++) {
+                try {
+                    conn.setConfiguration(d.getConfiguration(ci));
+                } catch (Throwable ignored) {
+                }
+                try {
+                    claimed = conn.claimInterface(target, true);
+                } catch (Throwable ignored) {
+                }
+                if (claimed) {
+                    break;
+                }
+            }
+        }
+        if (!claimed) {
             conn.close();
-            throw new IOException("无法占用 ADB 接口");
+            throw new IOException("无法占用 ADB 接口（可能被系统或其他 App 占用，请拔插后重试）");
         }
         Session s = new Session(conn, target, epIn, epOut, keyDir);
         s.handshake();
@@ -180,6 +202,7 @@ public final class AdbHost {
         private int nextLocalId = 1;
         private volatile boolean closed;
         private KeyPair keyPair;
+        private final StringBuilder trace = new StringBuilder();
 
         Session(UsbDeviceConnection c, UsbInterface i, UsbEndpoint in, UsbEndpoint out,
                 File keyDir) {
@@ -272,36 +295,72 @@ public final class AdbHost {
         // -------------------------------------------------------- 握手 / 认证
 
         private void handshake() throws IOException {
+            trace.setLength(0);
+            trace.append("→ CNXN version=0x")
+                    .append(Integer.toHexString(VERSION)).append('\n');
             send(A_CNXN, VERSION, MAXDATA, "host::\u0000".getBytes("UTF-8"));
-            boolean sentPubKey = false;
-            long deadline = System.currentTimeMillis() + 60000;
+
+            int sigTries = 0;
+            int keySent = 0;
+            long deadline = System.currentTimeMillis() + 90000;
             while (System.currentTimeMillis() < deadline) {
-                Object[] p = readPacket(TIMEOUT_PKT);
+                Object[] p;
+                try {
+                    p = readPacket(TIMEOUT_PKT);
+                } catch (IOException e) {
+                    trace.append("× 读包失败：").append(e.getMessage()).append('\n');
+                    break;
+                }
                 int cmd = (Integer) p[0];
+                int arg0 = (Integer) p[1];
                 byte[] data = (byte[]) p[3];
 
                 if (cmd == A_CNXN) {
-                    return; // 已连接
+                    trace.append("← CNXN 已连接\n");
+                    return;
+                }
+                if (cmd == A_STLS) {
+                    // 拒绝 TLS：回一个空 STLS
+                    trace.append("← STLS（拒绝 TLS）\n");
+                    send(A_STLS, 0, 0, null);
+                    continue;
                 }
                 if (cmd == A_AUTH) {
-                    int type = (Integer) p[1];
-                    if (type == AUTH_TOKEN) {
-                        if (!sentPubKey) {
+                    if (arg0 == AUTH_TOKEN) {
+                        trace.append("← AUTH TOKEN(len=").append(data.length).append(")\n");
+                        // 第一次先试签名；被拒后改发公钥（让设备弹授权框）
+                        if (sigTries < 1) {
+                            sigTries++;
                             byte[] sig = signToken(data);
                             if (sig != null) {
+                                trace.append("→ AUTH SIGNATURE\n");
                                 send(A_AUTH, AUTH_SIGNATURE, 0, sig);
                                 continue;
                             }
+                            trace.append("× 签名失败\n");
                         }
-                        // 签名不被接受 → 发送公钥，等对方点「允许」
-                        send(A_AUTH, AUTH_RSAPUBLICKEY, 0, androidPubKey());
-                        sentPubKey = true;
-                        continue;
+                        if (keySent < 3) {
+                            keySent++;
+                            byte[] pk = androidPubKey();
+                            trace.append("→ AUTH RSAPUBLICKEY(")
+                                    .append(pk.length).append("B) 请在对方手机点允许\n");
+                            send(A_AUTH, AUTH_RSAPUBLICKEY, 0, pk);
+                            continue;
+                        }
+                        trace.append("× 公钥被多次拒绝\n");
+                        break;
                     }
+                    trace.append("← AUTH type=").append(arg0).append('\n');
+                    continue;
                 }
-                // 其他包忽略
+                trace.append("← cmd=0x").append(Integer.toHexString(cmd)).append('\n');
             }
-            throw new IOException("ADB 认证超时：请在对方手机上点「允许 USB 调试」后重试");
+            throw new IOException("ADB 认证失败。\n\n"
+                    + "常见原因：\n"
+                    + "1) 对方手机没弹「允许 USB 调试」→ 重新插线再看对方屏幕\n"
+                    + "2) 对方已拒绝过本机 → 在对方「开发者选项 → 撤销 USB 调试授权」后重插\n"
+                    + "3) 对方 USB 模式选的是「仅充电」→ 改成「传输文件/MTP」\n\n"
+                    + "握手记录：\n" + trace);
         }
 
         private byte[] signToken(byte[] token) {
@@ -675,6 +734,11 @@ public final class AdbHost {
 
         public boolean isClosed() {
             return closed;
+        }
+
+        /** 握手/通信诊断记录。 */
+        public String trace() {
+            return trace.toString();
         }
     }
 }

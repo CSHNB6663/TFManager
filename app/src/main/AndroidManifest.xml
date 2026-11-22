@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.rootterm.fm"
-    android:versionCode="21111"
-    android:versionName="3.3.1">
+    android:versionCode="21120"
+    android:versionName="3.4.0">
 
     <!-- minSdk 26：Android 8.0；targetSdk 37：面向 Android 17 -->
     <uses-sdk

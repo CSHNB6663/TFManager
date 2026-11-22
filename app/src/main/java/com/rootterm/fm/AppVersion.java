@@ -7,8 +7,8 @@ public final class AppVersion {
      * 语义化版本编码：major*10000 + minor*100 + patch。
      * 例：2.7.2 → 20702；与更新源 tag（如 v2.7.2）解析规则一致，避免误判。
      */
-    public static final int CODE = 21111;
-    public static final String NAME = "3.3.1";
+    public static final int CODE = 21120;
+    public static final String NAME = "3.4.0";
 
     private AppVersion() {
     }

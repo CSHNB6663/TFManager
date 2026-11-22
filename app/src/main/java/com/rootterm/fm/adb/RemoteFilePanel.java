@@ -50,6 +50,7 @@ public class RemoteFilePanel extends LinearLayout {
     private TextView mStatus;
     private TextView mInfo;
     private TextView mPath;
+    private TextView mDiag;
     private LinearLayout mListHost;
     private boolean busy;
 
@@ -174,6 +175,17 @@ public class RemoteFilePanel extends LinearLayout {
         mPath.setPadding(dp(2), dp(8), dp(2), 0);
         col.addView(mPath);
 
+        mDiag = new TextView(ctx);
+        mDiag.setTextSize(10f);
+        mDiag.setTextColor(0xFF8A5A00);
+        mDiag.setLineSpacing(dp(1), 1f);
+        mDiag.setTextIsSelectable(true);
+        mDiag.setVisibility(GONE);
+        LinearLayout.LayoutParams dgp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        dgp.topMargin = dp(6);
+        col.addView(mDiag, dgp);
+
         // 列表
         mListHost = new LinearLayout(ctx);
         mListHost.setOrientation(VERTICAL);
@@ -223,8 +235,22 @@ public class RemoteFilePanel extends LinearLayout {
         if (list.isEmpty()) {
             mStatus.setText("未连接");
             mInfo.setText("用 OTG 线连接已开启 USB 调试的手机");
+            String dump = usbDump();
+            if (dump.isEmpty()) {
+                diag("未检测到任何 USB 设备。\n"
+                        + "· 确认 OTG 线/转接头可用（可先接 U 盘试试）\n"
+                        + "· 确认本机支持 USB Host\n"
+                        + "· 换个 USB 口/换根线");
+            } else {
+                diag("检测到 USB 设备，但没有 ADB 接口：\n" + dump
+                        + "\n若上面有你的手机，说明它没暴露 ADB：\n"
+                        + "· 打开「开发者选项 → USB 调试」\n"
+                        + "· 下拉通知栏把 USB 用途改成「传输文件 (MTP)」\n"
+                        + "· 拔插一次数据线");
+            }
             return;
         }
+        diag("");
         UsbDevice d = list.get(0);
         if (!usb.hasPermission(d)) {
             device = d;
@@ -277,7 +303,10 @@ public class RemoteFilePanel extends LinearLayout {
                         @Override
                         public void run() {
                             mStatus.setText("连接失败");
-                            mInfo.setText(String.valueOf(t.getMessage()));
+                            String msg = String.valueOf(t.getMessage());
+                            int nl = msg.indexOf('\n');
+                            mInfo.setText(nl < 0 ? msg : msg.substring(0, nl));
+                            diag(msg);
                         }
                     });
                 }
@@ -889,6 +918,46 @@ public class RemoteFilePanel extends LinearLayout {
 
     private int dp(float v) {
         return UiConfig.dp(ctx, v);
+    }
+
+    /** 显示诊断信息（空串则隐藏）。 */
+    private void diag(String text) {
+        if (mDiag == null) {
+            return;
+        }
+        if (text == null || text.trim().isEmpty()) {
+            mDiag.setText("");
+            mDiag.setVisibility(GONE);
+        } else {
+            mDiag.setText(text);
+            mDiag.setVisibility(VISIBLE);
+        }
+    }
+
+    /** 列出所有 USB 设备及其接口类别，便于判断对方是否暴露 ADB。 */
+    private String usbDump() {
+        if (usb == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (UsbDevice d : usb.getDeviceList().values()) {
+            sb.append(String.format(Locale.US, "· %04X:%04X",
+                    d.getVendorId(), d.getProductId()));
+            if (d.getProductName() != null) {
+                sb.append(" ").append(d.getProductName());
+            }
+            sb.append('\n');
+            for (int i = 0; i < d.getInterfaceCount(); i++) {
+                android.hardware.usb.UsbInterface itf = d.getInterface(i);
+                sb.append(String.format(Locale.US, "    itf%d class=0x%02X sub=0x%02X proto=0x%02X",
+                        i, itf.getInterfaceClass(), itf.getInterfaceSubclass(),
+                        itf.getInterfaceProtocol()));
+                sb.append(itf.getInterfaceClass() == 0xFF
+                        && itf.getInterfaceSubclass() == 0x42
+                        && itf.getInterfaceProtocol() == 0x01 ? "  ← ADB\n" : "\n");
+            }
+        }
+        return sb.toString();
     }
 
     private void toast(String s) {

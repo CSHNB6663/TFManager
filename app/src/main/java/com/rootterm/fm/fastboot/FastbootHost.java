@@ -162,9 +162,30 @@ public final class FastbootHost {
         if (conn == null) {
             throw new IOException("无法打开 USB 设备");
         }
-        if (!conn.claimInterface(target, true)) {
+        // claim 接口；部分设备需要先 SET_CONFIGURATION
+        boolean claimed = false;
+        try {
+            claimed = conn.claimInterface(target, true);
+        } catch (Throwable ignored) {
+        }
+        if (!claimed) {
+            for (int ci = 0; ci < d.getConfigurationCount(); ci++) {
+                try {
+                    conn.setConfiguration(d.getConfiguration(ci));
+                } catch (Throwable ignored) {
+                }
+                try {
+                    claimed = conn.claimInterface(target, true);
+                } catch (Throwable ignored) {
+                }
+                if (claimed) {
+                    break;
+                }
+            }
+        }
+        if (!claimed) {
             conn.close();
-            throw new IOException("无法占用 fastboot 接口（可能被系统占用）");
+            throw new IOException("无法占用 fastboot 接口（可能被系统占用，请拔插后重试）");
         }
         return new Device(conn, target, epIn, epOut);
     }
