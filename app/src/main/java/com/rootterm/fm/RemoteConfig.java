@@ -37,6 +37,10 @@ public final class RemoteConfig {
     private static String sNotice = "";
     private static String sUpdateFeed = "";
     private static int sMinVersionCode;
+    /** 赞助弹窗文案（空串表示不弹）。 */
+    private static String sSponsor = "";
+    /** 赞助弹窗最短间隔（小时），默认 24。 */
+    private static int sSponsorHours = 24;
     private static final HashMap<Integer, Character> sFontMap = new HashMap<Integer, Character>();
     private static boolean sLoaded;
 
@@ -61,6 +65,16 @@ public final class RemoteConfig {
 
     public static int minVersionCode() {
         return sMinVersionCode;
+    }
+
+    /** 赞助弹窗文案（空串=不弹）。 */
+    public static String sponsor() {
+        return sSponsor;
+    }
+
+    /** 赞助弹窗最短间隔（小时）。 */
+    public static int sponsorHours() {
+        return sSponsorHours <= 0 ? 24 : sSponsorHours;
     }
 
     /** 远端字体映射补丁（可能为空）。 */
@@ -161,6 +175,8 @@ public final class RemoteConfig {
         sNotice = "";
         sUpdateFeed = "";
         sMinVersionCode = 0;
+        sSponsor = "";
+        sSponsorHours = 24;
         sFontMap.clear();
         if (json == null || json.trim().isEmpty()) {
             return;
@@ -177,6 +193,14 @@ public final class RemoteConfig {
             Integer min = jsonNum(json, "minVersionCode");
             if (min != null) {
                 sMinVersionCode = min.intValue();
+            }
+            String sponsor = jsonStr(json, "sponsor");
+            if (sponsor != null) {
+                sSponsor = sponsor.trim();
+            }
+            Integer hours = jsonNum(json, "sponsorHours");
+            if (hours != null && hours.intValue() > 0) {
+                sSponsorHours = hours.intValue();
             }
             // fontMap: {"22709":"她", ...}  十进制码位 → 字符
             int i = json.indexOf("\"fontMap\"");

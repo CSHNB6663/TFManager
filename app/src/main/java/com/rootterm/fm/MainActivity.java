@@ -205,6 +205,14 @@ public class MainActivity extends Activity {
                 }
             }
         }, 900);
+        // 用缓存配置先尝试弹一次赞助
+        mPages.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                maybeShowSponsor();
+            }
+        }, 2500);
+
         // 后台刷新云端配置（热更新）
         RemoteConfig.refresh(this, new RemoteConfig.Callback() {
             @Override
@@ -214,6 +222,7 @@ public class MainActivity extends Activity {
                 if (changed) {
                     maybeShowNotice();
                 }
+                maybeShowSponsor();
             }
         });
 
@@ -2356,6 +2365,39 @@ public class MainActivity extends Activity {
                 .content(box)
                 .positive("知道了", null)
                 .show();
+    }
+
+    // ------------------------------------------------------------ 云端赞助弹窗
+
+    /** 云端推送的赞助弹窗（默认 24 小时最多一次）。 */
+    private void maybeShowSponsor() {
+        try {
+            final String text = RemoteConfig.sponsor();
+            if (text == null || text.trim().isEmpty()) {
+                return;
+            }
+            long now = System.currentTimeMillis();
+            long last = uiPrefs().getLong("sponsor_last", 0L);
+            long gap = RemoteConfig.sponsorHours() * 3600_000L;
+            if (now - last < gap) {
+                return;
+            }
+            uiPrefs().edit().putLong("sponsor_last", now).apply();
+
+            MiuixWindow.builder(this)
+                    .title("支持开发者")
+                    .message(text)
+                    .positive("查看赞赏码", new MiuixWindow.OnAction() {
+                        @Override
+                        public void onClick(android.app.Dialog d) {
+                            showDonateDialog();
+                        }
+                    })
+                    .negative("下次再说", null)
+                    .show();
+        } catch (Throwable t) {
+            AppLog.log("SPONSOR", "弹窗失败", t);
+        }
     }
 
     // ------------------------------------------------------------ 云端公告
