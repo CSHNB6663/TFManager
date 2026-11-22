@@ -53,6 +53,10 @@ public class RemoteFilePanel extends LinearLayout {
     private TextView mDiag;
     private LinearLayout mListHost;
     private boolean busy;
+    private final StringBuilder logBuf = new StringBuilder();
+    private boolean permRequested;
+    private android.os.Handler autoScan;
+    private boolean autoRunning;
 
     public RemoteFilePanel(Context c) {
         super(c);
@@ -128,6 +132,8 @@ public class RemoteFilePanel extends LinearLayout {
         scanBtn.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
+                permRequested = false;
+                clearLog();
                 scan();
             }
         });
@@ -198,8 +204,39 @@ public class RemoteFilePanel extends LinearLayout {
             @Override
             public void run() {
                 scan();
+                startAutoScan();
             }
         });
+    }
+
+    /** 未连接时每 2.5s 自动重扫，插线即发现。 */
+    private void startAutoScan() {
+        if (autoRunning) {
+            return;
+        }
+        autoRunning = true;
+        autoScan = new android.os.Handler(android.os.Looper.getMainLooper());
+        autoScan.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (getVisibility() != VISIBLE) {
+                    autoScan.postDelayed(this, 2500);
+                    return;
+                }
+                if (session == null) {
+                    scan();
+                }
+                autoScan.postDelayed(this, 2500);
+            }
+        }, 2500);
+    }
+
+    private void stopAutoScan() {
+        autoRunning = false;
+        if (autoScan != null) {
+            autoScan.removeCallbacksAndMessages(null);
+            autoScan = null;
+        }
     }
 
     private TextView actionButton(String text, int bg, int fg, OnClickListener l) {
@@ -229,6 +266,7 @@ public class RemoteFilePanel extends LinearLayout {
     public void scan() {
         if (usb == null) {
             mStatus.setText("本机不支持 USB Host");
+            log("× 本机没有 UsbManager（不支持 USB Host）");
             return;
         }
         List<UsbDevice> list = AdbHost.findDevices(usb);
@@ -237,32 +275,77 @@ public class RemoteFilePanel extends LinearLayout {
             mInfo.setText("用 OTG 线连接已开启 USB 调试的手机");
             String dump = usbDump();
             if (dump.isEmpty()) {
-                diag("未检测到任何 USB 设备。\n"
-                        + "· 确认 OTG 线/转接头可用（可先接 U 盘试试）\n"
+                log("× 未检测到任何 USB 设备\n"
+                        + "· 确认 OTG 线/转接头可用\n"
                         + "· 确认本机支持 USB Host\n"
-                        + "· 换个 USB 口/换根线");
+                        + "· 拔插一次或换根线");
             } else {
-                diag("检测到 USB 设备，但没有 ADB 接口：\n" + dump
+                log("· 检测到 USB 设备，但没有 ADB 接口：\n" + dump
                         + "\n若上面有你的手机，说明它没暴露 ADB：\n"
                         + "· 打开「开发者选项 → USB 调试」\n"
-                        + "· 下拉通知栏把 USB 用途改成「传输文件 (MTP)」\n"
+                        + "· 通知栏把 USB 用途改成「传输文件 (MTP)」\n"
                         + "· 拔插一次数据线");
             }
             return;
         }
-        diag("");
         UsbDevice d = list.get(0);
-        if (!usb.hasPermission(d)) {
-            device = d;
-            mStatus.setText("等待授权");
-            mInfo.setText(AdbHost.describe(d) + " · 请允许 USB 权限");
-            PendingIntent pi = PendingIntent.getBroadcast(ctx, 1,
-                    new Intent(AdbHost.ACTION_PERM).setPackage(ctx.getPackageName()),
-                    PendingIntent.FLAG_MUTABLE);
-            usb.requestPermission(d, pi);
+        log("· 找到 ADB 设备 " + AdbHost.describe(d));
+
+        if (usb.hasPermission(d)) {
+            log("· 已有 USB 权限");
+            connect(d);
             return;
         }
-        connect(d);
+
+        mStatus.setText("等待授权");
+        mInfo.setText(AdbHost.describe(d) + " · 请允许 USB 权限");
+        if (!permRequested) {
+            permRequested = true;
+            log("· 请求 USB 权限…（弹窗请点「允许」）");
+            try {
+                PendingIntent pi = PendingIntent.getBroadcast(ctx, 1,
+                        new Intent(AdbHost.ACTION_PERM).setPackage(ctx.getPackageName()),
+                        PendingIntent.FLAG_MUTABLE);
+                usb.requestPermission(d, pi);
+            } catch (Throwable t) {
+                log("× 请求权限异常：" + t);
+            }
+            pollPermission(d);
+        }
+    }
+
+    /** 轮询权限（不依赖广播，避免广播被拦）。 */
+    private void pollPermission(final UsbDevice d) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < 120; i++) {
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException ignored) {
+                    }
+                    if (usb.hasPermission(d)) {
+                        post(new Runnable() {
+                            @Override
+                            public void run() {
+                                log("· 权限已授予");
+                                connect(d);
+                            }
+                        });
+                        return;
+                    }
+                }
+                post(new Runnable() {
+                    @Override
+                    public void run() {
+                        permRequested = false;
+                        log("× 等待 USB 授权超时（60s）\n"
+                                + "· 若没看到授权弹窗，把线拔了重插\n"
+                                + "· 或在系统设置里清除本 App 的 USB 默认设置");
+                    }
+                });
+            }
+        }, "adb-perm").start();
     }
 
     public void onPermissionResult(boolean granted) {
@@ -281,6 +364,7 @@ public class RemoteFilePanel extends LinearLayout {
         closeSession();
         mStatus.setText("正在连接…");
         mInfo.setText("若对方弹出「允许 USB 调试」，请点允许");
+        log("· 打开 ADB 会话…（若对方弹「允许 USB 调试」请点允许）");
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -295,6 +379,8 @@ public class RemoteFilePanel extends LinearLayout {
                         public void run() {
                             mStatus.setText("已连接");
                             mInfo.setText(info.isEmpty() ? AdbHost.describe(d) : info.replace('\n', ' '));
+                            log("✓ 握手成功，已连接");
+                            permRequested = false;
                             browse("/sdcard");
                         }
                     });
@@ -306,7 +392,8 @@ public class RemoteFilePanel extends LinearLayout {
                             String msg = String.valueOf(t.getMessage());
                             int nl = msg.indexOf('\n');
                             mInfo.setText(nl < 0 ? msg : msg.substring(0, nl));
-                            diag(msg);
+                            log("× 连接失败：\n" + msg);
+                            permRequested = false;
                         }
                     });
                 }
@@ -920,6 +1007,26 @@ public class RemoteFilePanel extends LinearLayout {
         return UiConfig.dp(ctx, v);
     }
 
+    /** 追加一行日志并显示。 */
+    private void log(String line) {
+        logBuf.append(line).append('\n');
+        if (logBuf.length() > 4000) {
+            logBuf.delete(0, logBuf.length() - 3000);
+        }
+        if (mDiag != null) {
+            mDiag.setText(logBuf.toString());
+            mDiag.setVisibility(VISIBLE);
+        }
+    }
+
+    private void clearLog() {
+        logBuf.setLength(0);
+        if (mDiag != null) {
+            mDiag.setText("");
+            mDiag.setVisibility(GONE);
+        }
+    }
+
     /** 显示诊断信息（空串则隐藏）。 */
     private void diag(String text) {
         if (mDiag == null) {
@@ -965,6 +1072,7 @@ public class RemoteFilePanel extends LinearLayout {
     }
 
     public void release() {
+        stopAutoScan();
         closeSession();
     }
 }

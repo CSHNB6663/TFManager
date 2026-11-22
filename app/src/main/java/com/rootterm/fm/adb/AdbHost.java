@@ -152,7 +152,15 @@ public final class AdbHost {
             }
         }
         if (target == null) {
-            throw new IOException("未找到 ADB 接口");
+            StringBuilder sb = new StringBuilder("未找到 ADB 接口（需要 class=FF/sub=42/proto=01）。实际接口：");
+            for (int i = 0; i < d.getInterfaceCount(); i++) {
+                UsbInterface itf = d.getInterface(i);
+                sb.append(String.format(Locale.US, "\n  itf%d class=0x%02X sub=0x%02X proto=0x%02X",
+                        i, itf.getInterfaceClass(), itf.getInterfaceSubclass(),
+                        itf.getInterfaceProtocol()));
+            }
+            sb.append("\n请确认对方已开「USB 调试」，并把 USB 用途改成「传输文件(MTP)」。");
+            throw new IOException(sb.toString());
         }
         UsbDeviceConnection conn = m.openDevice(d);
         if (conn == null) {
@@ -184,7 +192,33 @@ public final class AdbHost {
             throw new IOException("无法占用 ADB 接口（可能被系统或其他 App 占用，请拔插后重试）");
         }
         Session s = new Session(conn, target, epIn, epOut, keyDir);
-        s.handshake();
+        try {
+            s.handshake();
+        } catch (IOException e) {
+            s.close();
+            // 重试一次：部分设备第一次会超时
+            UsbDeviceConnection conn2 = m.openDevice(d);
+            if (conn2 == null) {
+                throw e;
+            }
+            boolean ok2 = false;
+            try {
+                ok2 = conn2.claimInterface(target, true);
+            } catch (Throwable ignored) {
+            }
+            if (!ok2) {
+                conn2.close();
+                throw e;
+            }
+            Session s2 = new Session(conn2, target, epIn, epOut, keyDir);
+            try {
+                s2.handshake();
+            } catch (IOException e2) {
+                s2.close();
+                throw e2;
+            }
+            return s2;
+        }
         return s;
     }
 
