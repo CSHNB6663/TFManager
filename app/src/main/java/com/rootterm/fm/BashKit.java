@@ -52,6 +52,11 @@ public final class BashKit {
      * <b>阻塞调用，必须在后台线程。</b>
      */
     public static String ensure(Context ctx) {
+        // 内置 bash 完整性校验：被替换则拒绝使用
+        String bad = AssetCheck.verify(ctx);
+        if (bad != null) {
+            return null;
+        }
         if (isInstalled()) {
             return BASH;
         }

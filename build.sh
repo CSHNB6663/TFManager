@@ -11,7 +11,7 @@
 #   zipalign（apt）                                APK 对齐
 #   apksigner（build-tools lib/apksigner.jar，纯 Java）  v2+v3 签名
 #
-# 产物：dist/RootTerm-3.9.0.apk（包名 com.rootterm.fm，minSdk 26 / targetSdk 37）
+# 产物：dist/RootTerm-3.9.1.apk（包名 com.rootterm.fm，minSdk 26 / targetSdk 37）
 #
 # 用法：
 #   bash build.sh                 # 构建
@@ -27,7 +27,7 @@ JAR36="$SDK/android.jar"      # API 36：javac / aapt2 用
 JAR34="$SDK/android34.jar"    # API 34：aapt1 回退用
 OUT="tools/out"
 DIST="dist"
-APK="$DIST/RootTerm-3.9.0.apk"
+APK="$DIST/RootTerm-3.9.1.apk"
 FORCE_AAPT1=""
 OBFUSCATE=1
 
@@ -100,10 +100,20 @@ else
 fi
 
 # ---------------------------------------------------------------- 2. Java
+echo "== [2/7] 加固预处理（字符串加密 + assets 哈希）"
+rm -rf "$OUT/src"
+cp -r app/src/main/java "$OUT/src"
+if [ "$OBFUSCATE" = "1" ]; then
+  python3 tools/encstrings.py "$OUT/src" "$OUT/gen" app/src/main/assets
+else
+  # 不混淆时仍生成 BuildKey/BuildAssets，保证能编译
+  python3 tools/encstrings.py "$OUT/src" "$OUT/gen" app/src/main/assets
+fi
+
 echo "== [2/7] javac（API 36 类库，-source 8 -target 8）"
 javac -source 8 -target 8 -bootclasspath "$JAR36" -encoding UTF-8 -proc:none -nowarn -Xlint:none \
   -g:none \
-  -d "$OUT/classes" $(find app/src/main/java "$OUT/gen" -name '*.java')
+  -d "$OUT/classes" $(find "$OUT/src" "$OUT/gen" -name '*.java')
 
 # ---------------------------------------------------------------- 3. dex
 if [ "$OBFUSCATE" = "1" ]; then

@@ -351,8 +351,7 @@ public class MainActivity extends Activity {
                     return;
                 }
                 String act = intent.getAction();
-                if (!com.rootterm.fm.fastboot.FastbootHost.ACTION_PERM.equals(act)
-                        && !com.rootterm.fm.adb.AdbHost.ACTION_PERM.equals(act)) {
+                if (!com.rootterm.fm.fastboot.FastbootHost.ACTION_PERM.equals(act)) {
                     return;
                 }
                 boolean granted = intent.getBooleanExtra(
@@ -364,7 +363,6 @@ public class MainActivity extends Activity {
         };
         android.content.IntentFilter f = new android.content.IntentFilter();
         f.addAction(com.rootterm.fm.fastboot.FastbootHost.ACTION_PERM);
-        f.addAction(com.rootterm.fm.adb.AdbHost.ACTION_PERM);
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(mUsbReceiver, f, Context.RECEIVER_NOT_EXPORTED);
         } else {

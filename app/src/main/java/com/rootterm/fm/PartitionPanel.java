@@ -48,11 +48,8 @@ public class PartitionPanel extends LinearLayout {
     private LinearLayout mListHost;
     private LinearLayout mLocalBox;
     private com.rootterm.fm.fastboot.FastbootPanel mFastboot;
-    private com.rootterm.fm.adb.RemoteFilePanel mAdb;
-    private LinearLayout mAdbBox;
     private TextView mTabLocal;
     private TextView mTabFastboot;
-    private TextView mTabAdb;
     private int mMode = 0;
     private boolean loading;
 
@@ -107,10 +104,9 @@ public class PartitionPanel extends LinearLayout {
         LinearLayout modeBar = new LinearLayout(ctx);
         modeBar.setOrientation(HORIZONTAL);
         mTabFastboot = modeButton("Fastboot", true);
-        mTabAdb = modeButton("系统模式", false);
         mTabLocal = modeButton("本机", false);
-        int[][] margins = {{0, 3}, {3, 3}, {3, 0}};
-        TextView[] tabs = {mTabFastboot, mTabAdb, mTabLocal};
+        int[][] margins = {{0, 4}, {4, 0}};
+        TextView[] tabs = {mTabFastboot, mTabLocal};
         for (int i = 0; i < tabs.length; i++) {
             LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0,
                     ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
@@ -127,12 +123,6 @@ public class PartitionPanel extends LinearLayout {
                 setMode(0);
             }
         });
-        mTabAdb.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                setMode(1);
-            }
-        });
         mTabLocal.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -146,17 +136,6 @@ public class PartitionPanel extends LinearLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         fbp.topMargin = dp(14);
         page.addView(mFastboot, fbp);
-
-        // ---------- 系统模式（ADB 文件管理） ----------
-        mAdbBox = new LinearLayout(ctx);
-        mAdbBox.setOrientation(VERTICAL);
-        LinearLayout.LayoutParams abp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        abp.topMargin = dp(14);
-        page.addView(mAdbBox, abp);
-        mAdb = new com.rootterm.fm.adb.RemoteFilePanel(ctx);
-        mAdbBox.addView(mAdb, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         // ---------- 本机（root dd） ----------
         mLocalBox = new LinearLayout(ctx);
@@ -242,26 +221,20 @@ public class PartitionPanel extends LinearLayout {
         return b;
     }
 
-    /** 切换模式：0=Fastboot，1=系统模式(ADB)，2=本机(root)。 */
+    /** 切换模式：0=Fastboot，1=本机(root)。 */
     private void setMode(int mode) {
         mMode = mode;
         if (mFastboot != null) {
             mFastboot.setVisibility(mode == 0 ? VISIBLE : GONE);
         }
-        if (mAdbBox != null) {
-            mAdbBox.setVisibility(mode == 1 ? VISIBLE : GONE);
-        }
         if (mLocalBox != null) {
-            mLocalBox.setVisibility(mode == 2 ? VISIBLE : GONE);
+            mLocalBox.setVisibility(mode == 0 ? GONE : VISIBLE);
         }
         styleModeButton(mTabFastboot, mode == 0);
-        styleModeButton(mTabAdb, mode == 1);
-        styleModeButton(mTabLocal, mode == 2);
+        styleModeButton(mTabLocal, mode != 0);
         if (mode == 0 && mFastboot != null) {
             mFastboot.scan();
-        } else if (mode == 1 && mAdb != null) {
-            mAdb.scan();
-        } else if (mode == 2) {
+        } else {
             loadPartitions(false);
         }
     }
@@ -280,9 +253,7 @@ public class PartitionPanel extends LinearLayout {
 
     /** USB 权限结果（由 MainActivity 转发）。 */
     public void onUsbPermission(boolean granted) {
-        if (mMode == 1 && mAdb != null) {
-            mAdb.onPermissionResult(granted);
-        } else if (mFastboot != null) {
+        if (mFastboot != null) {
             mFastboot.onPermissionResult(granted);
         }
     }
@@ -292,12 +263,9 @@ public class PartitionPanel extends LinearLayout {
         if (mFastboot != null) {
             mFastboot.release();
         }
-        if (mAdb != null) {
-            mAdb.release();
-        }
     }
 
-    /** 当前模式：0=Fastboot，1=系统模式，2=本机。 */
+    /** 当前模式：0=Fastboot，1=本机。 */
     public int mode() {
         return mMode;
     }
