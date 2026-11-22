@@ -131,6 +131,9 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         // 日志与崩溃捕获：尽早初始化
         AppLog.init(this);
+        // 云端配置：先读缓存（极快），再后台刷新
+        RemoteConfig.loadCache(this);
+        FanqieFontMap.setOverride(RemoteConfig.fontMap());
         // 固定玻璃配色（已移除 Monet 动态取色）
         ThemeColors.init(this);
         C_BG = ThemeColors.SURFACE;
@@ -198,6 +201,18 @@ public class MainActivity extends Activity {
                 }
             }
         }, 900);
+        // 后台刷新云端配置（热更新）
+        RemoteConfig.refresh(this, new RemoteConfig.Callback() {
+            @Override
+            public void onDone(boolean changed) {
+                AppLog.log("CFG", "remote config refreshed, changed=" + changed);
+                FanqieFontMap.setOverride(RemoteConfig.fontMap());
+                if (changed) {
+                    maybeShowNotice();
+                }
+            }
+        });
+
         // 启动自动播放背景音乐
         mPages.postDelayed(new Runnable() {
             @Override
@@ -1236,6 +1251,11 @@ public class MainActivity extends Activity {
             "https://api.github.com/repos/CSHNB6663/TFManager/releases/latest";
 
     private String updateFeed() {
+        // 云端配置优先（可在仓库 config.json 里随时切换更新源）
+        String remote = RemoteConfig.updateFeed();
+        if (remote != null && !remote.trim().isEmpty()) {
+            return remote.trim();
+        }
         String f = uiPrefs().getString("update_feed", "");
         if (f == null || f.trim().isEmpty()) {
             return DEFAULT_UPDATE_FEED;
@@ -1698,6 +1718,30 @@ public class MainActivity extends Activity {
         // ---------------- 更新 ----------------
         page.addView(gap(14));
         page.addView(buildUpdateCard());
+
+        // ---------------- 云端配置 ----------------
+        page.addView(gap(14));
+        MiuixPreference.Group remote = MiuixPreference.group(this, "云端配置（热更新）");
+        remote.clickRow("立即刷新", RemoteConfig.hasConfig() ? "已缓存配置" : "暂无缓存",
+                "", new MiuixPreference.OnClick() {
+                    @Override
+                    public void onClick(View v) {
+                        toast("正在刷新…");
+                        RemoteConfig.refresh(MainActivity.this,
+                                new RemoteConfig.Callback() {
+                                    @Override
+                                    public void onDone(boolean changed) {
+                                        FanqieFontMap.setOverride(RemoteConfig.fontMap());
+                                        toast(changed ? "配置已更新" : "配置无变化");
+                                        if (changed) {
+                                            maybeShowNotice();
+                                        }
+                                    }
+                                });
+                    }
+                });
+        remote.infoRow("可远端调整", "更新源 · 公告 · 字体映射 · 最低版本");
+        page.addView(remote.build());
 
         // ---------------- 日志 ----------------
         page.addView(gap(14));
@@ -2292,6 +2336,25 @@ public class MainActivity extends Activity {
                 .title("关于")
                 .captionBar(true)
                 .content(box)
+                .positive("知道了", null)
+                .show();
+    }
+
+    // ------------------------------------------------------------ 云端公告
+
+    private void maybeShowNotice() {
+        final String notice = RemoteConfig.notice();
+        if (notice == null || notice.trim().isEmpty()) {
+            return;
+        }
+        String shown = uiPrefs().getString("notice_shown", "");
+        if (notice.equals(shown)) {
+            return;
+        }
+        uiPrefs().edit().putString("notice_shown", notice).apply();
+        MiuixWindow.builder(this)
+                .title("公告")
+                .message(notice)
                 .positive("知道了", null)
                 .show();
     }

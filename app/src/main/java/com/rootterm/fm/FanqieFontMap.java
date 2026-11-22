@@ -32,6 +32,14 @@ public final class FanqieFontMap {
     private FanqieFontMap() {
     }
 
+    /** 远端补丁（覆盖内置表）。 */
+    private static HashMap<Integer, Character> sOverride;
+
+    /** 应用云端补丁（番茄换字体时无需发版）。 */
+    public static void setOverride(HashMap<Integer, Character> map) {
+        sOverride = (map == null || map.isEmpty()) ? null : map;
+    }
+
     /** 把混淆码位还原成真实字符。 */
     public static String fix(String s) {
         if (s == null || s.isEmpty()) {
@@ -40,7 +48,10 @@ public final class FanqieFontMap {
         StringBuilder sb = new StringBuilder(s.length());
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
-            Character r = MAP.get((int) c);
+            Character r = sOverride != null ? sOverride.get((int) c) : null;
+            if (r == null) {
+                r = MAP.get((int) c);
+            }
             sb.append(r != null ? r.charValue() : c);
         }
         return sb.toString();
