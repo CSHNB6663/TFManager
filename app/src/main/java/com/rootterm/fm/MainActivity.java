@@ -178,6 +178,9 @@ public class MainActivity extends Activity {
             }
         }, 700);
         registerUsbReceiver();
+        // 通知权限（API 33+）与状态栏常驻
+        requestNotifyPermission();
+        NotifyService.startIfEnabled(this);
         // 启动自动播放背景音乐
         mPages.postDelayed(new Runnable() {
             @Override
@@ -1549,6 +1552,24 @@ public class MainActivity extends Activity {
         look.infoRow("主题配色", "固定玻璃蓝");
         page.addView(look.build());
 
+        // ---------------- 状态栏常驻 ----------------
+        page.addView(gap(14));
+        MiuixPreference.Group status = MiuixPreference.group(this, "状态栏");
+        status.switchRow("开机自启 · 常驻通知", "状态栏显示入口，点击可直接打开",
+                NotifyService.enabled(this), new MiuixPreference.OnSwitch() {
+                    @Override
+                    public void onChanged(boolean checked) {
+                        NotifyService.setEnabled(MainActivity.this, checked);
+                        if (checked) {
+                            requestNotifyPermission();
+                            NotifyService.startIfEnabled(MainActivity.this);
+                        } else {
+                            NotifyService.stop(MainActivity.this);
+                        }
+                    }
+                });
+        page.addView(status.build());
+
         // ---------------- 背景音乐 ----------------
         page.addView(gap(14));
         MiuixPreference.Group bgm = MiuixPreference.group(this, "背景音乐");
@@ -2209,6 +2230,21 @@ public class MainActivity extends Activity {
                 .content(box)
                 .positive("知道了", null)
                 .show();
+    }
+
+    // ------------------------------------------------------------ 状态栏常驻
+
+    private void requestNotifyPermission() {
+        if (Build.VERSION.SDK_INT < 33) {
+            return;
+        }
+        try {
+            if (checkSelfPermission("android.permission.POST_NOTIFICATIONS")
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1001);
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     // ------------------------------------------------------------ 背景音乐
