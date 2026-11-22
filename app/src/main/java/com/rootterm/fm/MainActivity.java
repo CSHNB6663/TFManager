@@ -1395,6 +1395,7 @@ public class MainActivity extends Activity {
                 .negative("后台下载", null)
                 .show();
 
+        final long[] lastUi = new long[]{0};
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -1415,58 +1416,30 @@ public class MainActivity extends Activity {
                     }
                     out = new java.io.File(dir, "TFManager-update.apk");
 
-                    java.net.HttpURLConnection conn =
-                            (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
-                    conn.setConnectTimeout(15000);
-                    conn.setReadTimeout(30000);
-                    conn.setInstanceFollowRedirects(true);
-                    conn.setRequestProperty("User-Agent", "TFManager/" + AppVersion.NAME);
-                    conn.connect();
-                    int code = conn.getResponseCode();
-                    if (code < 200 || code >= 300) {
-                        throw new Exception("HTTP " + code);
-                    }
-                    final long total = conn.getContentLength();
-                    java.io.InputStream in = conn.getInputStream();
-                    java.io.FileOutputStream fo = new java.io.FileOutputStream(out);
-                    long done = 0;
-                    long lastUi = 0;
-                    byte[] buf = new byte[65536];
-                    int n;
-                    try {
-                        while ((n = in.read(buf)) > 0) {
-                            fo.write(buf, 0, n);
-                            done += n;
-                            long now = System.currentTimeMillis();
-                            if (now - lastUi > 150) {
-                                lastUi = now;
-                                final long fd = done;
-                                final long ft = total;
-                                runOnUiThread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        if (ft > 0) {
-                                            bar.setProgress((int) (fd * 1000 / ft));
-                                            status.setText("已下载 " + (fd / 1024 / 1024)
-                                                    + " / " + (ft / 1024 / 1024) + " MB");
-                                        } else {
-                                            status.setText("已下载 " + (fd / 1024) + " KB");
-                                        }
-                                    }
-                                });
+                    final java.io.File target = out;
+                    MultiDownloader.download(url, target, 6, new MultiDownloader.Progress() {
+                        @Override
+                        public void onProgress(final long d, final long t) {
+                            final long now = System.currentTimeMillis();
+                            if (now - lastUi[0] < 120 && d < t) {
+                                return;
                             }
+                            lastUi[0] = now;
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (t > 0) {
+                                        bar.setProgress((int) (d * 1000 / t));
+                                        status.setText("已下载 " + (d / 1024 / 1024) + " / "
+                                                + (t / 1024 / 1024) + " MB");
+                                    } else {
+                                        status.setText("已下载 " + (d / 1024) + " KB");
+                                    }
+                                }
+                            });
                         }
-                    } finally {
-                        try {
-                            fo.close();
-                        } catch (Throwable ignored) {
-                        }
-                        try {
-                            in.close();
-                        } catch (Throwable ignored) {
-                        }
-                    }
-                    conn.disconnect();
+                    });
+                    final long done = target.length();
                     AppLog.log("UPDATE", "downloaded " + done + " bytes → " + out.getAbsolutePath());
 
                     final java.io.File apk = out;

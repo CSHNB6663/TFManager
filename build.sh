@@ -11,7 +11,7 @@
 #   zipalign（apt）                                APK 对齐
 #   apksigner（build-tools lib/apksigner.jar，纯 Java）  v2+v3 签名
 #
-# 产物：dist/RootTerm-5.8.1.apk（包名 com.rootterm.fm，minSdk 26 / targetSdk 37）
+# 产物：dist/RootTerm-5.9.0.apk（包名 com.rootterm.fm，minSdk 26 / targetSdk 37）
 #
 # 用法：
 #   bash build.sh                 # 构建
@@ -27,7 +27,7 @@ JAR36="$SDK/android.jar"      # API 36：javac / aapt2 用
 JAR34="$SDK/android34.jar"    # API 34：aapt1 回退用
 OUT="tools/out"
 DIST="dist"
-APK="$DIST/RootTerm-5.8.1.apk"
+APK="$DIST/RootTerm-5.9.0.apk"
 FORCE_AAPT1=""
 OBFUSCATE=1
 
