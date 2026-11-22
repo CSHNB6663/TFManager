@@ -83,6 +83,7 @@ public class MainActivity extends Activity {
 
     private TextView mHomeBadge;
     private CouiCardView mHomeStatusCard;
+    private LinearLayout mHomeStatusBox;
     private TextView mInfoKernelFull;
     private TextView mInfoHook;
     private TextView mInfoZygisk;
@@ -649,6 +650,7 @@ public class MainActivity extends Activity {
         boxBg.setColor(0xFFFFFFFF);
         boxBg.setCornerRadius(dp(14));
         statusBox.setBackground(boxBg);
+        mHomeStatusBox = statusBox;
         status.addView(statusBox, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -1705,14 +1707,10 @@ public class MainActivity extends Activity {
             mHomeStatusCard.setCardBorderColor(root ? 0x141FA35B : 0xFFEDEFF2);
         }
         // 状态方框背景也随 root 状态切换（白底或浅灰底）
-        LinearLayout statusRoot = mHomeStatusCard != null
-                ? (LinearLayout) mHomeStatusCard.getChildAt(1) : null;
-        if (statusRoot != null && statusRoot.getChildCount() > 0) {
-            View box = statusRoot.getChildAt(0);
-            if (box != null && box.getBackground() instanceof android.graphics.drawable.GradientDrawable) {
-                ((android.graphics.drawable.GradientDrawable) box.getBackground())
-                        .setColor(root ? 0xFFFFFFFF : 0xFFEDEFF2);
-            }
+        if (mHomeStatusCard != null && mHomeStatusBox != null
+                && mHomeStatusBox.getBackground() instanceof android.graphics.drawable.GradientDrawable) {
+            ((android.graphics.drawable.GradientDrawable) mHomeStatusBox.getBackground())
+                    .setColor(root ? 0xFFFFFFFF : 0xFFEDEFF2);
         }
         if (mHomeCheckBadge != null) {
             mHomeCheckBadge.setVisibility(root ? View.VISIBLE : View.GONE);
