@@ -119,6 +119,17 @@ def main():
 
     # 3) 找 APK
     dist = os.path.join(ROOT, "dist")
+    # 优先用与 AppVersion.NAME 对应的 APK，避免误传旧包
+    ver_src = os.path.join(ROOT, "app/src/main/java/com/rootterm/fm/AppVersion.java")
+    want = ""
+    try:
+        with open(ver_src, encoding="utf-8") as f:
+            m = re.search(r'NAME\s*=\s*"([^"]+)"', f.read())
+            if m:
+                want = m.group(1)
+    except Exception:
+        pass
+
     apks = []
     if os.path.isdir(dist):
         apks = [os.path.join(dist, f) for f in os.listdir(dist) if f.endswith(".apk")]
@@ -126,7 +137,14 @@ def main():
     if not apks:
         print("没有 dist/*.apk，请先 bash build.sh")
         return 1
-    apk = apks[0]
+    apk = None
+    if want:
+        exact = os.path.join(dist, "RootTerm-%s.apk" % want)
+        if os.path.isfile(exact):
+            apk = exact
+    if apk is None:
+        apk = apks[0]
+    print("== 使用 APK: %s（期望版本 %s）" % (os.path.basename(apk), want or "?"))
     apk_name = os.path.basename(apk)
     m = re.search(r"-([0-9][0-9.]*)\.apk$", apk_name)
     ver = m.group(1) if m else "1.0"
