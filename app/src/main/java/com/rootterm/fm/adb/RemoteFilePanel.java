@@ -53,8 +53,8 @@ public class RemoteFilePanel extends LinearLayout {
     private TextView mDiag;
     private LinearLayout mListHost;
     private boolean busy;
-    private final StringBuilder logBuf = new StringBuilder();
     private boolean permRequested;
+    private boolean connecting;
     private android.os.Handler autoScan;
     private boolean autoRunning;
 
@@ -133,8 +133,8 @@ public class RemoteFilePanel extends LinearLayout {
             @Override
             public void onClick(View v) {
                 permRequested = false;
-                clearLog();
-                scan();
+                setDetail("");
+                scanInternal(true);
             }
         });
         head.addView(scanBtn);
@@ -203,7 +203,10 @@ public class RemoteFilePanel extends LinearLayout {
         post(new Runnable() {
             @Override
             public void run() {
-                scan();
+                // 首次进入不主动弹权限框；若此前已授权则直接连
+                permRequested = true;
+                scanInternal(true);
+                permRequested = false;
                 startAutoScan();
             }
         });
@@ -223,8 +226,8 @@ public class RemoteFilePanel extends LinearLayout {
                     autoScan.postDelayed(this, 2500);
                     return;
                 }
-                if (session == null) {
-                    scan();
+                if (session == null && !connecting) {
+                    scanInternal(false);
                 }
                 autoScan.postDelayed(this, 2500);
             }
@@ -263,54 +266,111 @@ public class RemoteFilePanel extends LinearLayout {
 
     // ---------------------------------------------------------------- 连接
 
+    /** 手动扫描（会请求权限 / 建立连接）。 */
     public void scan() {
+        scanInternal(true);
+    }
+
+    /**
+     * 扫描设备。
+     *
+     * @param userInitiated true=用户点「扫描」（允许请求权限/连接）；
+     *                      false=后台自动探测（只更新状态，绝不再弹窗/不再连）
+     */
+    private void scanInternal(boolean userInitiated) {
         if (usb == null) {
-            mStatus.setText("本机不支持 USB Host");
-            log("× 本机没有 UsbManager（不支持 USB Host）");
+            setStatus("本机不支持 USB Host");
+            setDetail("× 没有 UsbManager，本机不具备 USB 主机能力");
             return;
         }
         List<UsbDevice> list = AdbHost.findDevices(usb);
         if (list.isEmpty()) {
-            mStatus.setText("未连接");
-            mInfo.setText("用 OTG 线连接已开启 USB 调试的手机");
-            String dump = usbDump();
-            if (dump.isEmpty()) {
-                log("× 未检测到任何 USB 设备\n"
-                        + "· 确认 OTG 线/转接头可用\n"
-                        + "· 确认本机支持 USB Host\n"
-                        + "· 拔插一次或换根线");
+            setStatus("未检测设备");
+            if (userInitiated) {
+                String dump = usbDump();
+                setDetail(dump.isEmpty()
+                        ? "未检测到任何 USB 设备\n· 确认 OTG 线/转接头可用\n· 拔插一次或换根线"
+                        : "检测到 USB 设备但没有 ADB 接口：\n" + dump
+                        + "\n请打开对方「USB 调试」并把 USB 用途改成「传输文件(MTP)」");
             } else {
-                log("· 检测到 USB 设备，但没有 ADB 接口：\n" + dump
-                        + "\n若上面有你的手机，说明它没暴露 ADB：\n"
-                        + "· 打开「开发者选项 → USB 调试」\n"
-                        + "· 通知栏把 USB 用途改成「传输文件 (MTP)」\n"
-                        + "· 拔插一次数据线");
+                setDetail("");
             }
             return;
         }
+
         UsbDevice d = list.get(0);
-        log("· 找到 ADB 设备 " + AdbHost.describe(d));
 
-        if (usb.hasPermission(d)) {
-            log("· 已有 USB 权限");
-            connect(d);
+        // 已连接：什么都不做
+        if (session != null) {
+            setStatus("已连接");
             return;
         }
 
-        mStatus.setText("等待授权");
-        mInfo.setText(AdbHost.describe(d) + " · 请允许 USB 权限");
-        if (!permRequested) {
-            permRequested = true;
-            log("· 请求 USB 权限…（弹窗请点「允许」）");
-            try {
-                PendingIntent pi = PendingIntent.getBroadcast(ctx, 1,
-                        new Intent(AdbHost.ACTION_PERM).setPackage(ctx.getPackageName()),
-                        PendingIntent.FLAG_MUTABLE);
-                usb.requestPermission(d, pi);
-            } catch (Throwable t) {
-                log("× 请求权限异常：" + t);
+        if (!usb.hasPermission(d)) {
+            setStatus("等待授权");
+            setDetail("· 已找到设备 " + AdbHost.describe(d) + "，等待 USB 授权");
+            // 只有用户主动点扫描才请求权限，避免无限弹窗
+            if (userInitiated && !permRequested) {
+                permRequested = true;
+                try {
+                    PendingIntent pi = PendingIntent.getBroadcast(ctx, 1,
+                            new Intent(AdbHost.ACTION_PERM).setPackage(ctx.getPackageName()),
+                            PendingIntent.FLAG_MUTABLE);
+                    usb.requestPermission(d, pi);
+                    setDetail("· 已请求 USB 权限，请在弹窗点「允许」");
+                } catch (Throwable t) {
+                    setDetail("× 请求权限异常：" + t);
+                    permRequested = false;
+                }
+                pollPermission(d);
             }
-            pollPermission(d);
+            return;
+        }
+
+        // 有权限但未连接：只有用户主动点扫描才去连（自动探测不连，避免反复弹授权）
+        if (!userInitiated) {
+            setStatus("已就绪");
+            setDetail("· 检测到设备，点「扫描」建立连接");
+            return;
+        }
+        if (connecting) {
+            return;
+        }
+        setDetail("· 打开 ADB 会话…（对方若弹「允许 USB 调试」请点允许）");
+        connect(d);
+    }
+
+    /** 状态文字（去重，避免闪烁）。 */
+    private void setStatus(String s) {
+        if (mStatus != null && !s.equals(mStatus.getText().toString())) {
+            mStatus.setText(s);
+        }
+        if (mInfo != null) {
+            String info = s;
+            if (!info.equals(mInfo.getText().toString())) {
+                mInfo.setText(info);
+            }
+        }
+    }
+
+    /** 详情（去重；空串则隐藏）。 */
+    private void setDetail(String s) {
+        if (mDiag == null) {
+            return;
+        }
+        String cur = mDiag.getText().toString();
+        if (s == null || s.isEmpty()) {
+            if (mDiag.getVisibility() != GONE) {
+                mDiag.setText("");
+                mDiag.setVisibility(GONE);
+            }
+            return;
+        }
+        if (!s.equals(cur)) {
+            mDiag.setText(s);
+        }
+        if (mDiag.getVisibility() != VISIBLE) {
+            mDiag.setVisibility(VISIBLE);
         }
     }
 
@@ -328,8 +388,10 @@ public class RemoteFilePanel extends LinearLayout {
                         post(new Runnable() {
                             @Override
                             public void run() {
-                                log("· 权限已授予");
-                                connect(d);
+                                setDetail("· 权限已授予，正在连接…");
+                                if (!connecting) {
+                                    connect(d);
+                                }
                             }
                         });
                         return;
@@ -339,9 +401,8 @@ public class RemoteFilePanel extends LinearLayout {
                     @Override
                     public void run() {
                         permRequested = false;
-                        log("× 等待 USB 授权超时（60s）\n"
-                                + "· 若没看到授权弹窗，把线拔了重插\n"
-                                + "· 或在系统设置里清除本 App 的 USB 默认设置");
+                        setDetail("× 等待 USB 授权超时\n· 若没看到授权弹窗，把线拔了重插\n"
+                                + "· 再点一次「扫描」");
                     }
                 });
             }
@@ -350,21 +411,21 @@ public class RemoteFilePanel extends LinearLayout {
 
     public void onPermissionResult(boolean granted) {
         if (!granted) {
-            mStatus.setText("授权被拒绝");
+            setStatus("授权被拒绝");
+            setDetail("× USB 授权被拒绝，点「扫描」重试");
+            permRequested = false;
             return;
         }
-        if (device != null) {
+        if (device != null && !connecting) {
+            setDetail("· 权限已授予，正在连接…");
             connect(device);
-        } else {
-            scan();
         }
     }
 
     private void connect(final UsbDevice d) {
         closeSession();
-        mStatus.setText("正在连接…");
-        mInfo.setText("若对方弹出「允许 USB 调试」，请点允许");
-        log("· 打开 ADB 会话…（若对方弹「允许 USB 调试」请点允许）");
+        connecting = true;
+        setStatus("正在连接…");
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -377,10 +438,10 @@ public class RemoteFilePanel extends LinearLayout {
                     post(new Runnable() {
                         @Override
                         public void run() {
-                            mStatus.setText("已连接");
-                            mInfo.setText(info.isEmpty() ? AdbHost.describe(d) : info.replace('\n', ' '));
-                            log("✓ 握手成功，已连接");
+                            connecting = false;
                             permRequested = false;
+                            setStatus("已连接");
+                            setDetail(info);
                             browse("/sdcard");
                         }
                     });
@@ -388,12 +449,11 @@ public class RemoteFilePanel extends LinearLayout {
                     post(new Runnable() {
                         @Override
                         public void run() {
-                            mStatus.setText("连接失败");
+                            connecting = false;
+                            setStatus("连接失败");
                             String msg = String.valueOf(t.getMessage());
-                            int nl = msg.indexOf('\n');
-                            mInfo.setText(nl < 0 ? msg : msg.substring(0, nl));
-                            log("× 连接失败：\n" + msg);
-                            permRequested = false;
+                            setDetail("× " + msg);
+                            permRequested = true;   // 不自动重试，等用户点「扫描」
                         }
                     });
                 }
@@ -1005,40 +1065,6 @@ public class RemoteFilePanel extends LinearLayout {
 
     private int dp(float v) {
         return UiConfig.dp(ctx, v);
-    }
-
-    /** 追加一行日志并显示。 */
-    private void log(String line) {
-        logBuf.append(line).append('\n');
-        if (logBuf.length() > 4000) {
-            logBuf.delete(0, logBuf.length() - 3000);
-        }
-        if (mDiag != null) {
-            mDiag.setText(logBuf.toString());
-            mDiag.setVisibility(VISIBLE);
-        }
-    }
-
-    private void clearLog() {
-        logBuf.setLength(0);
-        if (mDiag != null) {
-            mDiag.setText("");
-            mDiag.setVisibility(GONE);
-        }
-    }
-
-    /** 显示诊断信息（空串则隐藏）。 */
-    private void diag(String text) {
-        if (mDiag == null) {
-            return;
-        }
-        if (text == null || text.trim().isEmpty()) {
-            mDiag.setText("");
-            mDiag.setVisibility(GONE);
-        } else {
-            mDiag.setText(text);
-            mDiag.setVisibility(VISIBLE);
-        }
     }
 
     /** 列出所有 USB 设备及其接口类别，便于判断对方是否暴露 ADB。 */
