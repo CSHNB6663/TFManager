@@ -1564,7 +1564,7 @@ public class MainActivity extends Activity {
                         }
                     }
                 });
-        bgm.clickRow("音乐文件", BgmPlayer.path(this), "", new MiuixPreference.OnClick() {
+        bgm.clickRow("音乐文件", bgmLabel(), "", new MiuixPreference.OnClick() {
             @Override
             public void onClick(View v) {
                 pickBgm();
@@ -2212,6 +2212,15 @@ public class MainActivity extends Activity {
     }
 
     // ------------------------------------------------------------ 背景音乐
+
+    /** 音乐来源描述。 */
+    private String bgmLabel() {
+        String p = BgmPlayer.path(this);
+        if (new File(p).isFile()) {
+            return "自定义：" + new File(p).getName();
+        }
+        return "内置（发如雪）";
+    }
 
     private void pickBgm() {
         ImagePicker.show(this, "选择背景音乐", "/sdcard/Music",

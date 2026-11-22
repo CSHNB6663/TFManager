@@ -18,8 +18,12 @@ import java.io.File;
  */
 public final class BgmPlayer {
 
-    /** 默认音乐路径（用户自行放入合法音源）。 */
+    /** 默认音乐路径（用户可自行替换成别的音源）。 */
     public static final String DEFAULT_PATH = "/sdcard/Music/发如雪.mp3";
+
+    /** 内置背景音乐（assets 内，首次使用时释放到私有目录）。 */
+    private static final String ASSET = "bgm/default.m4a";
+    private static final String CACHE_NAME = "bgm/default.m4a";
 
     private static final String PREF = "bgm";
 
@@ -56,12 +60,55 @@ public final class BgmPlayer {
         prefs(c).edit().putString("path", p == null ? "" : p).apply();
     }
 
-    /** 文件是否存在。 */
+    /** 文件是否存在（用户文件或内置音乐）。 */
     public static boolean fileReady(Context c) {
+        return resolve(c) != null;
+    }
+
+    /**
+     * 解析实际播放路径：
+     * 1) 用户指定且存在 → 用它；
+     * 2) 否则用内置音乐（首次自动释放到私有目录）。
+     */
+    public static String resolve(Context c) {
         try {
-            return new File(path(c)).isFile();
+            File user = new File(path(c));
+            if (user.isFile() && user.length() > 10000) {
+                return user.getAbsolutePath();
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            File cached = new File(c.getFilesDir(), CACHE_NAME);
+            if (cached.isFile() && cached.length() > 100000) {
+                return cached.getAbsolutePath();
+            }
+            cached.getParentFile().mkdirs();
+            java.io.InputStream in = c.getAssets().open(ASSET);
+            try {
+                java.io.FileOutputStream fo = new java.io.FileOutputStream(cached);
+                try {
+                    byte[] buf = new byte[32768];
+                    int n;
+                    while ((n = in.read(buf)) > 0) {
+                        fo.write(buf, 0, n);
+                    }
+                } finally {
+                    try {
+                        fo.close();
+                    } catch (Throwable ignored) {
+                    }
+                }
+            } finally {
+                try {
+                    in.close();
+                } catch (Throwable ignored) {
+                }
+            }
+            return cached.isFile() && cached.length() > 100000
+                    ? cached.getAbsolutePath() : null;
         } catch (Throwable t) {
-            return false;
+            return null;
         }
     }
 
@@ -77,7 +124,10 @@ public final class BgmPlayer {
 
     /** 开始/继续播放。返回是否成功。 */
     public static boolean play(Context c) {
-        String p = path(c);
+        String p = resolve(c);
+        if (p == null) {
+            return false;
+        }
         File f = new File(p);
         if (!f.isFile()) {
             return false;
