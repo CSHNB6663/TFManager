@@ -32,6 +32,8 @@ import android.widget.FrameLayout;
 
 import com.coui.widget.CouiCardView;
 import com.coui.widget.CouiCheckBadge;
+import java.io.File;
+
 import com.miuix.glass.MiuixGlass;
 import com.miuix.icons.MiuixIcons;
 import com.miuix.nav.MiuixNavBar;
@@ -1434,6 +1436,18 @@ public class MainActivity extends Activity {
         about.infoRow("目标", "targetSdk 37（Android 17）");
         page.addView(about.build());
 
+        // ---------------- 番茄小说下载 ----------------
+        page.addView(gap(14));
+        MiuixPreference.Group novel = MiuixPreference.group(this, "小说");
+        novel.iconClickRow(resId("ic_file_ebook"), C_ACCENT,
+                "番茄小说下载", "粘贴链接导出 TXT", "", new MiuixPreference.OnClick() {
+                    @Override
+                    public void onClick(View v) {
+                        showFanqieDialog();
+                    }
+                });
+        page.addView(novel.build());
+
         TextView foot = UiConfig.text(this, "TF管理终端 · Miuix 玻璃风格", 10.5f, 0xFFA0A4AB);
         foot.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams flp = new LinearLayout.LayoutParams(
@@ -1885,6 +1899,145 @@ public class MainActivity extends Activity {
                 .content(box)
                 .positive("知道了", null)
                 .show();
+    }
+
+    // ------------------------------------------------------------ 番茄小说下载
+
+    private void showFanqieDialog() {
+        final android.widget.EditText linkEt = new android.widget.EditText(this);
+        linkEt.setSingleLine(true);
+        linkEt.setHint("https://fanqienovel.com/page/7143038691944959011");
+
+        final android.widget.EditText numEt = new android.widget.EditText(this);
+        numEt.setSingleLine(true);
+        numEt.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        numEt.setText("20");
+        numEt.setHint("导出章节数（默认 20）");
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+
+        TextView tip = new TextView(this);
+        tip.setText("粘贴番茄小说的书籍链接（形如 /page/数字），导出为 TXT 保存到下载目录。\n\n"
+                + "说明：未登录只能拿到公开的试读片段，且番茄对部分字符做了字体混淆，"
+                + "导出的 TXT 可能缺字或错字；完整内容请在番茄 App 内阅读。"
+                + "本功能仅用于个人备份，请支持正版。");
+        tip.setTextSize(11.5f);
+        tip.setTextColor(0xFF8A5A00);
+        tip.setLineSpacing(dp(2), 1f);
+        box.addView(tip);
+
+        box.addView(label2("书籍链接"));
+        box.addView(linkEt);
+        box.addView(label2("导出章节数"));
+        box.addView(numEt);
+
+        MiuixWindow.builder(this)
+                .title("番茄小说下载")
+                .content(box)
+                .scrollable(false)
+                .positive("开始下载", new MiuixWindow.OnAction() {
+                    @Override
+                    public void onClick(android.app.Dialog d) {
+                        String link = linkEt.getText().toString().trim();
+                        if (link.isEmpty()) {
+                            toast("请粘贴书籍链接");
+                            return;
+                        }
+                        int n = 20;
+                        try {
+                            n = Integer.parseInt(numEt.getText().toString().trim());
+                        } catch (Throwable ignored) {
+                        }
+                        if (n <= 0) {
+                            n = 20;
+                        }
+                        if (n > 200) {
+                            n = 200;
+                        }
+                        startFanqieDownload(link, n);
+                    }
+                })
+                .negative("取消", null)
+                .show();
+    }
+
+    private TextView label2(String t) {
+        TextView v = UiConfig.text(this, t, 11.5f, MiuixTheme.onSurfaceVariant());
+        v.setPadding(0, dp(10), 0, dp(3));
+        return v;
+    }
+
+    private void startFanqieDownload(final String link, final int chapters) {
+        final TextView status = new TextView(this);
+        status.setText("正在准备…");
+        status.setTextSize(12.5f);
+        status.setTextColor(MiuixTheme.onSurface());
+        status.setTextIsSelectable(true);
+
+        final android.widget.ProgressBar bar = new android.widget.ProgressBar(this,
+                null, android.R.attr.progressBarStyleHorizontal);
+        bar.setMax(1000);
+        bar.setProgress(0);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(6));
+        bp.topMargin = dp(10);
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.addView(status);
+        box.addView(bar, bp);
+
+        MiuixWindow.builder(this)
+                .title("下载中")
+                .content(box)
+                .scrollable(false)
+                .cancelable(false)
+                .negative("后台继续", null)
+                .show();
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final File out = FanqieDownloader.download(link, chapters,
+                            new FanqieDownloader.Progress() {
+                                @Override
+                                public void onProgress(final int done, final int total,
+                                                       final String msg) {
+                                    runOnUiThread(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            if (total > 0) {
+                                                bar.setProgress(done * 1000 / total);
+                                            }
+                                            if (msg != null) {
+                                                status.setText(msg);
+                                            }
+                                        }
+                                    });
+                                }
+                            });
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            bar.setProgress(1000);
+                            status.setText("已保存：\n" + out.getAbsolutePath()
+                                    + "\n\n文件大小：" + (out.length() / 1024) + " KB");
+                            status.setTextColor(MiuixTheme.success());
+                        }
+                    });
+                } catch (final Throwable t) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            status.setText("下载失败：" + t.getMessage());
+                            status.setTextColor(MiuixTheme.error());
+                        }
+                    });
+                }
+            }
+        }, "fanqie").start();
     }
 
     // ------------------------------------------------------------ 小工具

@@ -1,0 +1,335 @@
+package com.rootterm.fm;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * 番茄小说下载（网页公开内容）。
+ *
+ * <p><b>能力边界（务必知晓）：</b></p>
+ * <ul>
+ *   <li>书籍页公开：书名、作者、章节 ID 列表可解析；</li>
+ *   <li>正文：未登录只能拿到<b>试读片段</b>，且番茄对部分字符做了
+ *       <b>自定义字体混淆</b>（形近字替换），因此导出的 TXT 可能缺字/错字；</li>
+ *   <li>完整正文需在番茄小说 App 内阅读，本工具不绕过鉴权。</li>
+ * </ul>
+ */
+public final class FanqieDownloader {
+
+    private static final String UA =
+            "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 "
+                    + "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+
+    private static final int TIMEOUT = 20000;
+
+    /** 书籍信息。 */
+    public static final class Book {
+        public String bookId = "";
+        public String title = "";
+        public String author = "";
+        public int total;
+        public final List<String> chapterIds = new ArrayList<String>();
+    }
+
+    /** 章节。 */
+    public static final class Chapter {
+        public String id = "";
+        public String title = "";
+        public String text = "";
+    }
+
+    /** 进度回调（后台线程调用）。 */
+    public interface Progress {
+        void onProgress(int done, int total, String message);
+    }
+
+    private FanqieDownloader() {
+    }
+
+    // ---------------------------------------------------------------- 解析
+
+    /** 从分享链接/纯 ID 里取出书籍 ID。 */
+    public static String parseBookId(String link) {
+        if (link == null) {
+            return null;
+        }
+        String s = link.trim();
+        Matcher m = Pattern.compile("fanqienovel\\.com/page/(\\d+)").matcher(s);
+        if (m.find()) {
+            return m.group(1);
+        }
+        m = Pattern.compile("book_id=(\\d+)").matcher(s);
+        if (m.find()) {
+            return m.group(1);
+        }
+        m = Pattern.compile("^(\\d{10,})$").matcher(s);
+        if (m.find()) {
+            return m.group(1);
+        }
+        // 兜底：取最长的一串数字
+        m = Pattern.compile("(\\d{15,25})").matcher(s);
+        if (m.find()) {
+            return m.group(1);
+        }
+        return null;
+    }
+
+    /** 抓书籍信息（书名 / 作者 / 章节 ID 列表）。 */
+    public static Book fetchBook(String bookId) throws Exception {
+        String html = get("https://fanqienovel.com/page/" + bookId);
+        Book b = new Book();
+        b.bookId = bookId;
+
+        String t = firstGroup(html, "<title>(.*?)</title>");
+        if (t != null) {
+            b.title = t.replace("完整版在线免费阅读", "").replace("在线免费阅读", "")
+                    .replace("_番茄小说官网", "").replace("_番茄小说", "").trim();
+        }
+        String name = firstGroup(html, "\"bookName\":\"([^\"]+)\"");
+        if (name != null && !name.trim().isEmpty()) {
+            b.title = name.trim();
+        }
+        String author = firstGroup(html, "\"author\":\"([^\"]+)\"");
+        if (author != null) {
+            b.author = author.trim();
+        }
+        String total = firstGroup(html, "\"chapterTotal\":(\\d+)");
+        if (total != null) {
+            try {
+                b.total = Integer.parseInt(total);
+            } catch (Throwable ignored) {
+            }
+        }
+        // 章节 ID 列表：优先 itemIds 数组
+        Matcher m = Pattern.compile("\"itemIds\":\\[(.*?)\\]").matcher(html);
+        if (m.find()) {
+            Matcher id = Pattern.compile("\"(\\d{10,25})\"").matcher(m.group(1));
+            while (id.find()) {
+                b.chapterIds.add(id.group(1));
+            }
+        }
+        if (b.chapterIds.isEmpty()) {
+            Matcher id = Pattern.compile("/reader/(\\d{10,25})").matcher(html);
+            while (id.find()) {
+                if (!b.chapterIds.contains(id.group(1))) {
+                    b.chapterIds.add(id.group(1));
+                }
+            }
+        }
+        if (b.title.isEmpty()) {
+            b.title = "fanqie-" + bookId;
+        }
+        return b;
+    }
+
+    /** 抓单章（标题 + 公开可见的正文片段）。 */
+    public static Chapter fetchChapter(String chapterId) throws Exception {
+        String html = get("https://fanqienovel.com/reader/" + chapterId);
+        Chapter c = new Chapter();
+        c.id = chapterId;
+
+        int cd = html.indexOf("\"chapterData\":");
+        String seg = cd >= 0 ? html.substring(cd, Math.min(html.length(), cd + 60000)) : html;
+
+        String title = firstGroup(seg, "\"title\":\"(.*?)\"");
+        if (title != null) {
+            c.title = jsonUnescape(title);
+        }
+        String content = firstGroup(seg, "\"content\":\"(.*?)\",\"");
+        if (content == null) {
+            content = firstGroup(seg, "\"content\":\"(.*?)\"\\}");
+        }
+        if (content != null) {
+            String raw = jsonUnescape(content);
+            c.text = stripHtml(raw);
+        }
+        if (c.text == null) {
+            c.text = "";
+        }
+        return c;
+    }
+
+    // ---------------------------------------------------------------- 下载
+
+    /**
+     * 下载整本书（最多 maxChapters 章）为 TXT。
+     *
+     * @return 生成的 txt 文件
+     */
+    public static File download(String link, int maxChapters, Progress p) throws Exception {
+        String bookId = parseBookId(link);
+        if (bookId == null) {
+            throw new Exception("链接里找不到书籍 ID\n请粘贴形如 https://fanqienovel.com/page/7143038691944959011 的链接");
+        }
+        if (p != null) {
+            p.onProgress(0, 1, "读取书籍信息…");
+        }
+        Book book = fetchBook(bookId);
+        if (book.chapterIds.isEmpty()) {
+            throw new Exception("没有解析到章节列表（可能是短链或页面结构变化）");
+        }
+        int total = Math.min(maxChapters <= 0 ? book.chapterIds.size() : maxChapters,
+                book.chapterIds.size());
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(book.title).append('\n');
+        if (!book.author.isEmpty()) {
+            sb.append("作者：").append(book.author).append('\n');
+        }
+        sb.append("来源：番茄小说网（公开页面）\n");
+        sb.append("说明：未登录仅能获取试读片段，部分字符受字体混淆可能错字。\n");
+        sb.append("章节总数：").append(book.total > 0 ? book.total : book.chapterIds.size())
+                .append("，本次导出前 ").append(total).append(" 章\n");
+        sb.append("————————————\n\n");
+
+        int ok = 0;
+        for (int i = 0; i < total; i++) {
+            String cid = book.chapterIds.get(i);
+            if (p != null) {
+                p.onProgress(i, total, "第 " + (i + 1) + "/" + total + " 章…");
+            }
+            try {
+                Chapter c = fetchChapter(cid);
+                sb.append("第").append(i + 1).append("章  ")
+                        .append(c.title == null ? "" : c.title).append("\n\n");
+                sb.append(c.text).append("\n\n");
+                ok++;
+            } catch (Throwable t) {
+                sb.append("（第 ").append(i + 1).append(" 章获取失败：")
+                        .append(t.getMessage()).append("）\n\n");
+            }
+        }
+
+        File out = new File("/sdcard/Download", safeName(book.title) + ".txt");
+        FileOutputStream fo = new FileOutputStream(out);
+        try {
+            fo.write(sb.toString().getBytes("UTF-8"));
+        } finally {
+            try {
+                fo.close();
+            } catch (Throwable ignored) {
+            }
+        }
+        if (p != null) {
+            p.onProgress(total, total, "完成：" + ok + "/" + total + " 章");
+        }
+        return out;
+    }
+
+    // ---------------------------------------------------------------- 工具
+
+    private static String get(String url) throws Exception {
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setConnectTimeout(TIMEOUT);
+            conn.setReadTimeout(TIMEOUT);
+            conn.setRequestProperty("User-Agent", UA);
+            conn.setRequestProperty("Accept-Language", "zh-CN,zh;q=0.9");
+            conn.setRequestProperty("Referer", "https://fanqienovel.com/");
+            int code = conn.getResponseCode();
+            if (code < 200 || code >= 300) {
+                throw new Exception("HTTP " + code);
+            }
+            InputStream in = conn.getInputStream();
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[16384];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                bos.write(buf, 0, n);
+            }
+            in.close();
+            return bos.toString("UTF-8");
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+    }
+
+    private static String firstGroup(String src, String regex) {
+        if (src == null) {
+            return null;
+        }
+        Matcher m = Pattern.compile(regex, Pattern.DOTALL).matcher(src);
+        return m.find() ? m.group(1) : null;
+    }
+
+    /** 反转义 JSON 字符串（unicode 转义、斜杠、引号、换行）。 */
+    private static String jsonUnescape(String s) {
+        if (s == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c != '\\' || i + 1 >= s.length()) {
+                sb.append(c);
+                continue;
+            }
+            char e = s.charAt(++i);
+            switch (e) {
+                case 'n':
+                    sb.append('\n');
+                    break;
+                case 't':
+                    sb.append('\t');
+                    break;
+                case 'r':
+                    sb.append('\r');
+                    break;
+                case '"':
+                    sb.append('"');
+                    break;
+                case '\\':
+                    sb.append('\\');
+                    break;
+                case '/':
+                    sb.append('/');
+                    break;
+                case 'u':
+                    if (i + 4 < s.length()) {
+                        try {
+                            sb.append((char) Integer.parseInt(s.substring(i + 1, i + 5), 16));
+                            i += 4;
+                        } catch (Throwable ignored) {
+                        }
+                    }
+                    break;
+                default:
+                    sb.append(e);
+            }
+        }
+        return sb.toString();
+    }
+
+    /** 去掉 HTML 标签，保留段落换行。 */
+    private static String stripHtml(String html) {
+        if (html == null) {
+            return "";
+        }
+        String s = html.replaceAll("(?i)</p\\s*>", "\n");
+        s = s.replaceAll("<[^>]+>", "");
+        s = s.replace("&nbsp;", " ").replace("&amp;", "&")
+                .replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"");
+        s = s.replaceAll("[ \\t]+\\n", "\n");
+        s = s.replaceAll("\\n{3,}", "\n\n");
+        return s.trim();
+    }
+
+    private static String safeName(String name) {
+        String n = name == null ? "novel" : name.trim();
+        n = n.replaceAll("[\\\\/:*?\"<>|\\n\\r]", "_");
+        if (n.length() > 60) {
+            n = n.substring(0, 60);
+        }
+        return n.isEmpty() ? "novel" : n;
+    }
+}
