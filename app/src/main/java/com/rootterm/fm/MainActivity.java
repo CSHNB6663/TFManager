@@ -2510,32 +2510,33 @@ public class MainActivity extends Activity {
 
     // ------------------------------------------------------------ 云端赞助弹窗
 
-    /** 云端推送的赞助弹窗（默认 24 小时最多一次）。 */
+    /** 内置默认赞助文案（远端未配置时使用）。 */
+    private static final String DEFAULT_SPONSOR =
+            "如果这个工具帮到了你，欢迎请我喝杯咖啡 ☕\n\n你的支持是持续更新的动力！";
+
+    /** 赞助弹窗：每次进入应用都会弹（远端 sponsor 设为 off 可关闭）。 */
     private void maybeShowSponsor() {
         try {
-            final String text = RemoteConfig.sponsor();
+            String text = RemoteConfig.sponsor();
             if (text == null || text.trim().isEmpty()) {
-                return;
+                text = DEFAULT_SPONSOR;          // 远端没配 → 用内置文案
             }
-            long now = System.currentTimeMillis();
-            long last = uiPrefs().getLong("sponsor_last", 0L);
-            long gap = RemoteConfig.sponsorHours() * 3600_000L;
-            if (now - last < gap) {
-                return;
+            if ("off".equalsIgnoreCase(text.trim())) {
+                return;                          // 远端设为 off → 不弹
             }
-            uiPrefs().edit().putLong("sponsor_last", now).apply();
-
+            final String msg = text;
             MiuixWindow.builder(this)
                     .title("支持开发者")
-                    .message(text)
+                    .message(msg)
                     .positive("查看赞赏码", new MiuixWindow.OnAction() {
                         @Override
                         public void onClick(android.app.Dialog d) {
                             showDonateDialog();
                         }
                     })
-                    .negative("下次再说", null)
+                    .negative("关闭", null)
                     .show();
+            AppLog.log("SPONSOR", "弹出赞助弹窗");
         } catch (Throwable t) {
             AppLog.log("SPONSOR", "弹窗失败", t);
         }
