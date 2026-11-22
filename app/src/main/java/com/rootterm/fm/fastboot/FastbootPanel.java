@@ -50,6 +50,8 @@ public class FastbootPanel extends LinearLayout {
     private LinearLayout mListHost;
     private TextView mHint;
     private LinearLayout mQuickHost;
+    private TextView mCmdOut;
+    private ScrollView mCmdOutScroll;
     private boolean busy;
 
     public FastbootPanel(Context c) {
@@ -230,7 +232,7 @@ public class FastbootPanel extends LinearLayout {
                     scan();
                     return;
                 }
-                execCommand("执行命令", cmd);
+                runCommandInline(cmd);
             }
         });
         cmdRow.addView(runBtn, rp);
@@ -245,6 +247,33 @@ public class FastbootPanel extends LinearLayout {
         cmdTip.setLineSpacing(dp(1), 1f);
         cmdTip.setPadding(dp(14), 0, dp(14), dp(10));
         cmdBox.addView(cmdTip);
+
+        // 输出区（执行结果显示在这里）
+        mCmdOutScroll = new ScrollView(ctx);
+        mCmdOutScroll.setVerticalFadingEdgeEnabled(false);
+        mCmdOutScroll.setVisibility(GONE);
+
+        mCmdOut = new TextView(ctx);
+        mCmdOut.setTextSize(11.5f);
+        mCmdOut.setTextColor(0xFF2A2E35);
+        mCmdOut.setTypeface(android.graphics.Typeface.MONOSPACE);
+        mCmdOut.setTextIsSelectable(true);
+        mCmdOut.setLineSpacing(dp(2), 1f);
+        mCmdOut.setPadding(dp(12), dp(10), dp(12), dp(10));
+        android.graphics.drawable.GradientDrawable og =
+                new android.graphics.drawable.GradientDrawable();
+        og.setColor(0xFFF7F8FA);
+        og.setCornerRadius(dp(12));
+        og.setStroke(Math.max(1, dp(0.8f)), 0xFFE3E7EE);
+        mCmdOut.setBackground(og);
+        mCmdOutScroll.addView(mCmdOut);
+
+        LinearLayout.LayoutParams osp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        osp.leftMargin = dp(12);
+        osp.rightMargin = dp(12);
+        osp.bottomMargin = dp(12);
+        cmdBox.addView(mCmdOutScroll, osp);
 
         addView(cmdCard, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -838,6 +867,44 @@ public class FastbootPanel extends LinearLayout {
                 });
             }
         }, "fb-boot").start();
+    }
+
+    /** 在命令行下方输出区执行命令并显示结果。 */
+    private void runCommandInline(final String cmd) {
+        if (mCmdOut == null) {
+            return;
+        }
+        mCmdOutScroll.setVisibility(VISIBLE);
+        mCmdOut.setText("> " + cmd + "\n\n执行中…");
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String out;
+                boolean ok = false;
+                try {
+                    FastbootHost.Resp r = session.exec(cmd);
+                    ok = r.okay;
+                    String body = (r.log == null ? "" : r.log)
+                            + (r.payload == null ? "" : r.payload);
+                    out = "> " + cmd + "\n\n" + (ok ? "OK" : "FAIL")
+                            + (body.trim().isEmpty() ? "" : "\n" + body.trim());
+                } catch (Throwable t) {
+                    out = "> " + cmd + "\n\n异常：" + t.getMessage();
+                }
+                final String fo = out;
+                final boolean fok = ok;
+                post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (mCmdOut != null) {
+                            mCmdOut.setText(fo);
+                            mCmdOut.setTextColor(fok ? 0xFF1B7A3E : 0xFFC0392B);
+                        }
+                    }
+                });
+            }
+        }, "fb-cmdline").start();
     }
 
     /** 执行并展示结果。 */
