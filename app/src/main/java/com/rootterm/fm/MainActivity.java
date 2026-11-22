@@ -141,14 +141,14 @@ public class MainActivity extends Activity {
         // 安装包签名校验（防重打包）
         String signErr = SignCheck.verify(this);
         if (signErr != null) {
-            new AlertDialog.Builder(this, android.R.style.Theme_Material_Light_Dialog_Alert)
-                    .setTitle("无法启动")
-                    .setMessage("安装包校验失败：" + signErr
+            MiuixWindow.builder(this)
+                    .title("无法启动")
+                    .message("安装包校验失败：" + signErr
                             + "\n\n请从官方渠道重新安装。")
-                    .setCancelable(false)
-                    .setPositiveButton("退出", new android.content.DialogInterface.OnClickListener() {
+                    .cancelable(false)
+                    .positive("退出", new MiuixWindow.OnAction() {
                         @Override
-                        public void onClick(android.content.DialogInterface d, int w) {
+                        public void onClick(android.app.Dialog d) {
                             finish();
                         }
                     })
@@ -1164,17 +1164,17 @@ public class MainActivity extends Activity {
         final String feed = updateFeed();
         if (isWebPageFeed(feed)) {
             // 夸克网盘等分享页：直接打开
-            new AlertDialog.Builder(this, android.R.style.Theme_Material_Light_Dialog_Alert)
-                    .setTitle("在线更新页面")
-                    .setMessage("当前更新源是网页/网盘分享页，无法自动比对版本。\n"
+            MiuixWindow.builder(this)
+                    .title("在线更新页面")
+                    .message("当前更新源是网页/网盘分享页，无法自动比对版本。\n\n"
                             + "将打开浏览器查看最新版本：\n" + feed)
-                    .setPositiveButton("打开页面", new android.content.DialogInterface.OnClickListener() {
+                    .positive("打开页面", new MiuixWindow.OnAction() {
                         @Override
-                        public void onClick(android.content.DialogInterface d, int w) {
+                        public void onClick(android.app.Dialog d) {
                             openUpdatePage(feed);
                         }
                     })
-                    .setNegativeButton("取消", null)
+                    .negative("取消", null)
                     .show();
             return;
         }
@@ -1215,12 +1215,12 @@ public class MainActivity extends Activity {
         } else {
             msg.append("（更新源未提供下载地址）");
         }
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Light_Dialog_Alert)
-                .setTitle("发现新版本 v" + r.versionName)
-                .setMessage(msg.toString())
-                .setPositiveButton("立即下载", new android.content.DialogInterface.OnClickListener() {
+        MiuixWindow.builder(this)
+                .title("发现新版本 v" + r.versionName)
+                .message(msg.toString())
+                .positive("立即下载", new MiuixWindow.OnAction() {
                     @Override
-                    public void onClick(android.content.DialogInterface d, int w) {
+                    public void onClick(android.app.Dialog d) {
                         if (r.downloadUrl.isEmpty()) {
                             toast("没有下载地址");
                             return;
@@ -1233,12 +1233,13 @@ public class MainActivity extends Activity {
                         }
                     }
                 })
-                .setNeutralButton("复制链接", new android.content.DialogInterface.OnClickListener() {
+                .neutral("复制链接", new MiuixWindow.OnAction() {
                     @Override
-                    public void onClick(android.content.DialogInterface d, int w) {
+                    public void onClick(android.app.Dialog d) {
                         try {
-                            android.content.ClipboardManager cm = (android.content.ClipboardManager)
-                                    getSystemService(CLIPBOARD_SERVICE);
+                            android.content.ClipboardManager cm =
+                                    (android.content.ClipboardManager)
+                                            getSystemService(CLIPBOARD_SERVICE);
                             if (cm != null) {
                                 cm.setPrimaryClip(android.content.ClipData.newPlainText(
                                         "url", r.downloadUrl));
@@ -1249,7 +1250,7 @@ public class MainActivity extends Activity {
                         }
                     }
                 })
-                .setNegativeButton("稍后", null)
+                .negative("稍后", null)
                 .show();
     }
 
@@ -1258,19 +1259,20 @@ public class MainActivity extends Activity {
         et.setText(updateFeed());
         et.setSingleLine(true);
         et.setHint("https://api.github.com/repos/你/仓库/releases/latest 或 JSON 清单地址");
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Light_Dialog_Alert)
-                .setTitle("更新源地址")
-                .setMessage("支持 GitHub Releases API 或自定义 JSON 清单")
-                .setView(et)
-                .setPositiveButton("保存", new android.content.DialogInterface.OnClickListener() {
+        MiuixWindow.builder(this)
+                .title("更新源地址")
+                .message("支持 GitHub Releases API 或自定义 JSON 清单")
+                .content(et)
+                .scrollable(false)
+                .positive("保存", new MiuixWindow.OnAction() {
                     @Override
-                    public void onClick(android.content.DialogInterface d, int w) {
+                    public void onClick(android.app.Dialog d) {
                         uiPrefs().edit().putString("update_feed",
                                 et.getText().toString().trim()).apply();
                         toast("已保存更新源");
                     }
                 })
-                .setNegativeButton("取消", null)
+                .negative("取消", null)
                 .show();
     }
 
