@@ -60,10 +60,12 @@ public class SafPanel extends LinearLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setBackgroundColor(0x00000000);
 
-        addView(buildHeader(), new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(46)));
-        addView(divider(), new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(0.8f))));
+        View header = buildHeader();
+        LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        hlp.topMargin = dp(10);
+        hlp.bottomMargin = dp(2);
+        addView(header, hlp);
 
         LinearLayout tool = new LinearLayout(activity);
         tool.setOrientation(HORIZONTAL);
@@ -108,19 +110,19 @@ public class SafPanel extends LinearLayout {
         pathView = UiConfig.text(activity, "", 11.5f, C_DIM);
         pathView.setSingleLine(true);
         pathView.setEllipsize(TextUtils.TruncateAt.MIDDLE);
-        pathView.setPadding(dp(16), 0, dp(16), dp(6));
+        pathView.setPadding(dp(18), dp(2), dp(18), dp(6));
         addView(pathView);
 
         tipView = UiConfig.text(activity,
                 "未授权目录：点「选择目录…」用系统文件选择器授权一个目录（如 Download），"
                         + "之后读写都不需要 root。", 12f, C_DIM);
-        tipView.setPadding(dp(16), dp(6), dp(16), dp(6));
+        tipView.setPadding(dp(18), dp(6), dp(18), dp(10));
         addView(tipView);
 
         ScrollView sv = new ScrollView(activity);
         listBox = new LinearLayout(activity);
         listBox.setOrientation(VERTICAL);
-        listBox.setPadding(dp(12), dp(4), dp(12), dp(24));
+        listBox.setPadding(dp(14), dp(6), dp(14), dp(160));
         sv.addView(listBox, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         addView(sv, new LinearLayout.LayoutParams(
@@ -133,8 +135,8 @@ public class SafPanel extends LinearLayout {
         LinearLayout header = new LinearLayout(act);
         header.setOrientation(HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setBackgroundColor(C_CARD);
-        header.setPadding(dp(6), 0, dp(12), 0);
+        header.setBackgroundColor(0x00000000);
+        header.setPadding(dp(12), dp(4), dp(16), dp(4));
 
         ImageView back = new ImageView(act);
         int res = act.getResources().getIdentifier("ic_nav_back", "drawable", act.getPackageName());
@@ -144,7 +146,8 @@ public class SafPanel extends LinearLayout {
         }
         back.setClickable(true);
         back.setPadding(dp(8), dp(8), dp(8), dp(8));
-        header.addView(back, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        back.setBackground(round(0x66FFFFFF, 14, 0xFFE3E7EE));
+        header.addView(back, new LinearLayout.LayoutParams(dp(38), dp(38)));
         back.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -154,7 +157,7 @@ public class SafPanel extends LinearLayout {
             }
         });
 
-        TextView title = UiConfig.text(act, "免 root 目录（SAF）", 16f, C_TEXT);
+        TextView title = UiConfig.text(act, "免 root 目录", 22f, C_TEXT);
         title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
         LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -319,7 +322,7 @@ public class SafPanel extends LinearLayout {
         }
         LinearLayout card = new LinearLayout(act);
         card.setOrientation(VERTICAL);
-        card.setBackground(round(C_CARD, 16, C_LINE));
+        card.setBackground(round(0xF2FFFFFF, 18, 0xFFE3E7EE));
         listBox.addView(card, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -594,14 +597,19 @@ public class SafPanel extends LinearLayout {
 
     private View divider() {
         View v = new View(act);
-        v.setBackgroundColor(C_LINE);
+        v.setBackgroundColor(0xFFF0F1F3);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(0.7f)));
+        lp.leftMargin = dp(16);
+        v.setLayoutParams(lp);
         return v;
     }
 
     private TextView chip(String text) {
         TextView tv = UiConfig.text(act, text, 12.5f, C_TEXT);
-        tv.setPadding(dp(12), dp(6), dp(12), dp(6));
-        tv.setBackground(round(0xFFF2F3F5, 12, C_LINE));
+        tv.setTypeface(null, android.graphics.Typeface.BOLD);
+        tv.setPadding(dp(14), dp(8), dp(14), dp(8));
+        tv.setBackground(round(0xF2FFFFFF, 15, 0xFFE3E7EE));
         tv.setClickable(true);
         return tv;
     }
