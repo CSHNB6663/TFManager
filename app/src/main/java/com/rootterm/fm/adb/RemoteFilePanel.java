@@ -171,6 +171,13 @@ public class RemoteFilePanel extends LinearLayout {
                         uploadDialog();
                     }
                 }));
+        pathBar.addView(actionButton("OTG 自检", 0x14000000, MiuixTheme.onSurface(),
+                new OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        showOtgSelfTest();
+                    }
+                }));
 
         mPath = new TextView(ctx);
         mPath.setText("/sdcard");
@@ -1065,6 +1072,71 @@ public class RemoteFilePanel extends LinearLayout {
 
     private int dp(float v) {
         return UiConfig.dp(ctx, v);
+    }
+
+    /** OTG 自检：判断「仅充电」到底是哪一环断了。 */
+    private void showOtgSelfTest() {
+        StringBuilder sb = new StringBuilder();
+
+        if (usb == null) {
+            sb.append("✗ 本机没有 UsbManager\n本机不支持 USB Host，无法作为主机。");
+            showSelfTestResult(sb.toString());
+            return;
+        }
+
+        java.util.Collection<android.hardware.usb.UsbDevice> all =
+                usb.getDeviceList().values();
+        int total = all.size();
+        int adbCount = 0;
+        for (android.hardware.usb.UsbDevice d : all) {
+            if (AdbHost.isAdb(d)) {
+                adbCount++;
+            }
+        }
+
+        sb.append("主机端看到 USB 设备数：").append(total).append('\n');
+        sb.append("其中 ADB 设备：").append(adbCount).append("\n\n");
+
+        if (total == 0) {
+            sb.append("✗ 一个 USB 设备都没看到\n\n")
+                    .append("说明「数据线」这条链路没通，与 App 无关。\n")
+                    .append("按顺序排查：\n")
+                    .append("1) 换一根【确定能传文件】的数据线\n")
+                    .append("   （很多随机附带线是「只充电」线，最容易踩坑）\n")
+                    .append("2) 换 OTG 转接头（有些转接头只做供电）\n")
+                    .append("3) 用同一个 OTG 接 U 盘/鼠标试试：\n")
+                    .append("   能认出来 → OTG 正常，问题在对方手机或线\n")
+                    .append("   认不出   → 本机 OTG 没生效（换转接头或检查接口）\n")
+                    .append("4) 对方手机换个方向插（Type-C 正反/清洁接口）\n")
+                    .append("5) 对方手机若是「仅充电」提示，基本可确定数据线不通");
+        } else if (adbCount == 0) {
+            sb.append("△ 看到了 USB 设备，但都不是 ADB\n\n")
+                    .append(usbDump())
+                    .append("\n处理：\n")
+                    .append("1) 对方手机：设置 → 开发者选项 → 打开「USB 调试」\n")
+                    .append("2) 插线后下拉对方通知栏，把 USB 用途改成「传输文件 (MTP)」\n")
+                    .append("3) 若对方仍只显示「充电」，说明数据线不通，换线\n")
+                    .append("4) 部分机型需再打开「USB 调试（安全设置）」");
+        } else {
+            sb.append("✓ 已识别到 ADB 设备，可以点「扫描」连接\n\n")
+                    .append(usbDump());
+        }
+
+        showSelfTestResult(sb.toString());
+    }
+
+    private void showSelfTestResult(String text) {
+        TextView tv = new TextView(ctx);
+        tv.setText(text);
+        tv.setTextSize(12f);
+        tv.setTextColor(MiuixTheme.onSurface());
+        tv.setLineSpacing(dp(2), 1f);
+        tv.setTextIsSelectable(true);
+        MiuixWindow.builder(ctx)
+                .title("OTG 自检")
+                .content(tv)
+                .positive("关闭", null)
+                .show();
     }
 
     /** 列出所有 USB 设备及其接口类别，便于判断对方是否暴露 ADB。 */
