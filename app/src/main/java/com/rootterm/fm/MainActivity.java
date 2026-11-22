@@ -330,8 +330,12 @@ public class MainActivity extends Activity {
         mUsbReceiver = new android.content.BroadcastReceiver() {
             @Override
             public void onReceive(android.content.Context c, Intent intent) {
-                if (intent == null || !com.rootterm.fm.fastboot.FastbootHost.ACTION_PERM
-                        .equals(intent.getAction())) {
+                if (intent == null) {
+                    return;
+                }
+                String act = intent.getAction();
+                if (!com.rootterm.fm.fastboot.FastbootHost.ACTION_PERM.equals(act)
+                        && !com.rootterm.fm.adb.AdbHost.ACTION_PERM.equals(act)) {
                     return;
                 }
                 boolean granted = intent.getBooleanExtra(
@@ -341,8 +345,9 @@ public class MainActivity extends Activity {
                 }
             }
         };
-        android.content.IntentFilter f = new android.content.IntentFilter(
-                com.rootterm.fm.fastboot.FastbootHost.ACTION_PERM);
+        android.content.IntentFilter f = new android.content.IntentFilter();
+        f.addAction(com.rootterm.fm.fastboot.FastbootHost.ACTION_PERM);
+        f.addAction(com.rootterm.fm.adb.AdbHost.ACTION_PERM);
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(mUsbReceiver, f, Context.RECEIVER_NOT_EXPORTED);
         } else {
