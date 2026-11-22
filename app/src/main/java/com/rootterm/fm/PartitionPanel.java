@@ -452,11 +452,26 @@ public class PartitionPanel extends LinearLayout {
         final String out = OUT_BACKUP + "/" + p.name + "-"
                 + new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
                 .format(new java.util.Date()) + ".img";
+
+        LinearLayout box = new LinearLayout(ctx);
+        box.setOrientation(VERTICAL);
+
+        TextView warn = new TextView(ctx);
+        warn.setText("即将备份分区 " + p.name + "\n\n"
+                + "读取量：约 " + human(p.size) + "\n"
+                + "输出到：" + out + "\n\n"
+                + "过程中请勿断开存储或退出应用。");
+        warn.setTextSize(12f);
+        warn.setTextColor(0xFF8A5A00);
+        warn.setLineSpacing(dp(2), 1f);
+        warn.setTextIsSelectable(true);
+        box.addView(warn);
+
         MiuixWindow.builder(ctx)
-                .title("提取镜像")
-                .message("将把分区 " + p.name + " 完整备份到：\n\n" + out
-                        + "\n\n大小约 " + human(p.size) + "，请确保存储空间充足。")
-                .positive("开始提取", new MiuixWindow.OnAction() {
+                .title("警告")
+                .content(box)
+                .scrollable(false)
+                .positive("确认执行", new MiuixWindow.OnAction() {
                     @Override
                     public void onClick(android.app.Dialog d) {
                         runDd(p, out, true);
@@ -572,24 +587,33 @@ public class PartitionPanel extends LinearLayout {
 
         LinearLayout box = new LinearLayout(ctx);
         box.setOrientation(VERTICAL);
+
         TextView warn = new TextView(ctx);
-        warn.setText("刷写会用镜像内容覆盖分区 " + p.name + "（" + human(p.size) + "）。"
-                + "写错分区会导致设备无法开机，请务必确认镜像与分区匹配，并已提前备份。");
-        warn.setTextSize(11.5f);
+        warn.setText("刷写会用镜像内容覆盖分区 " + p.name + "（" + human(p.size) + "）。\n\n"
+                + "· 目标设备：" + p.path + "\n"
+                + "· 写错分区会导致设备无法开机\n"
+                + "· 请确认镜像与分区匹配，并已提前备份\n\n"
+                + "此操作不可撤销。");
+        warn.setTextSize(12f);
         warn.setTextColor(0xFFC0392B);
         warn.setLineSpacing(dp(2), 1f);
         box.addView(warn);
 
-        LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        ep.topMargin = dp(10);
-        box.addView(et, ep);
+        TextView label = new TextView(ctx);
+        label.setText("镜像文件路径");
+        label.setTextSize(11.5f);
+        label.setTextColor(MiuixTheme.onSurfaceVariant());
+        label.setPadding(0, dp(12), 0, dp(4));
+        box.addView(label);
+
+        box.addView(et, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         MiuixWindow.builder(ctx)
-                .title("刷写 " + p.name)
+                .title("警告")
                 .content(box)
                 .scrollable(false)
-                .positive("确认刷写", new MiuixWindow.OnAction() {
+                .positive("确认执行", new MiuixWindow.OnAction() {
                     @Override
                     public void onClick(android.app.Dialog d) {
                         String path = et.getText().toString().trim();
@@ -603,22 +627,7 @@ public class PartitionPanel extends LinearLayout {
                             toast("镜像文件不存在");
                             return;
                         }
-                        confirmFlash(p, path);
-                    }
-                })
-                .negative("取消", null)
-                .show();
-    }
-
-    private void confirmFlash(final Part p, final String imagePath) {
-        MiuixWindow.builder(ctx)
-                .title("再次确认")
-                .message("即将把\n" + imagePath + "\n\n写入分区\n" + p.name + "（"
-                        + p.path + "）\n\n此操作不可撤销。确定继续？")
-                .positive("确定刷写", new MiuixWindow.OnAction() {
-                    @Override
-                    public void onClick(android.app.Dialog d) {
-                        runDd(p, imagePath, false);
+                        runDd(p, path, false);
                     }
                 })
                 .negative("取消", null)
