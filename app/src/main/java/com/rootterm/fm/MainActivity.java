@@ -87,6 +87,8 @@ public class MainActivity extends Activity {
     private View mNavContainer;
     private PartitionPanel mPartPanel;
     private android.content.BroadcastReceiver mUsbReceiver;
+    private boolean mForceUpdateShown;
+    private long mLastUpdateCheck;
     private FrameLayout mFanqieCard;
     private FanqieWebLogin mFanqieLogin;
     private FrameLayout mPartCard;
@@ -408,6 +410,26 @@ public class MainActivity extends Activity {
         } else {
             registerReceiver(mUsbReceiver, f);
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // 回到前台再检查一次（10 分钟节流），已弹过强制更新则不重复
+        if (mForceUpdateShown) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        if (now - mLastUpdateCheck < 10 * 60 * 1000L) {
+            return;
+        }
+        mLastUpdateCheck = now;
+        mPages.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                autoCheckUpdate();
+            }
+        }, 800);
     }
 
     @Override
@@ -1211,10 +1233,67 @@ public class MainActivity extends Activity {
             @Override
             public void onResult(UpdateChecker.Result r) {
                 if (r.ok && isNewer(r)) {
-                    showUpdateDialog(r);
+                    showForceUpdate(r);
                 }
             }
         });
+    }
+
+    /** 强制更新弹窗：不更新无法使用。 */
+    private void showForceUpdate(final UpdateChecker.Result r) {
+        if (mForceUpdateShown) {
+            return;
+        }
+        mForceUpdateShown = true;
+
+        String notes = r.notes == null ? "" : r.notes.trim();
+        if (notes.length() > 500) {
+            notes = notes.substring(0, 500) + "…";
+        }
+        StringBuilder msg = new StringBuilder();
+        msg.append("当前版本：v").append(AppVersion.NAME).append('\n');
+        msg.append("最新版本：v").append(r.versionName).append("\n\n");
+        if (!notes.isEmpty()) {
+            msg.append("更新内容：\n").append(notes).append("\n\n");
+        }
+        msg.append("本次为强制更新：更新完成后才能继续使用。");
+
+        MiuixWindow.builder(this)
+                .title("需要更新到 v" + r.versionName)
+                .message(msg.toString())
+                .cancelable(false)
+                .positive("立即更新", new MiuixWindow.OnAction() {
+                    @Override
+                    public void onClick(android.app.Dialog d) {
+                        openUpdate(r.downloadUrl);
+                    }
+                })
+                .negative("退出应用", new MiuixWindow.OnAction() {
+                    @Override
+                    public void onClick(android.app.Dialog d) {
+                        finish();
+                    }
+                })
+                .show();
+    }
+
+    /** 打开下载地址（优先 APK 直链，其次更新源页）。 */
+    private void openUpdate(String url) {
+        String target = (url == null || url.trim().isEmpty()) ? updateFeed() : url.trim();
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(target)));
+        } catch (Throwable t) {
+            try {
+                android.content.ClipboardManager cm = (android.content.ClipboardManager)
+                        getSystemService(CLIPBOARD_SERVICE);
+                if (cm != null) {
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("url", target));
+                }
+                toast("无法打开浏览器，下载链接已复制");
+            } catch (Throwable ignored) {
+                toast("无法打开下载链接");
+            }
+        }
     }
 
     /**
@@ -1301,7 +1380,8 @@ public class MainActivity extends Activity {
                     return;
                 }
                 if (isNewer(r)) {
-                    showUpdateDialog(r);
+                    mForceUpdateShown = false;
+                    showForceUpdate(r);
                 } else {
                     toast("当前已是最新版本 v" + AppVersion.NAME);
                 }
