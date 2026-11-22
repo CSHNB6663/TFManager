@@ -32,6 +32,14 @@ import android.widget.FrameLayout;
 
 import com.coui.widget.CouiCardView;
 import com.coui.widget.CouiCheckBadge;
+import com.miuix.glass.MiuixGlass;
+import com.miuix.icons.MiuixIcons;
+import com.miuix.nav.MiuixNavBar;
+import com.miuix.pref.MiuixPreference;
+import com.miuix.squircle.Squircle;
+import com.miuix.ui.MiuixCard;
+import com.miuix.ui.MiuixTheme;
+import com.miuix.window.MiuixWindow;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -71,9 +79,7 @@ public class MainActivity extends Activity {
     private DualFilePanel mFiles;
     private int mTab = TAB_HOME;
 
-    private final LinearLayout[] mNavItems = new LinearLayout[TAB_COUNT];
-    private final ImageView[] mNavIcons = new ImageView[TAB_COUNT];
-    private final TextView[] mNavLabels = new TextView[TAB_COUNT];
+    private MiuixNavBar mMiuixNav;
 
     private LinearLayout mTermCard;
     private TerminalPanel mTerminal;
@@ -82,8 +88,8 @@ public class MainActivity extends Activity {
     private SafPanel mSaf;
 
     private TextView mHomeBadge;
-    private CouiCardView mHomeStatusCard;
-    private CouiCardView mHomeStatusBox;
+    private MiuixCard mHomeStatusCard;
+    private MiuixGlass mHomeStatusBox;
     private TextView mHomeMode;
     private TextView mInfoKernelFull;
     private TextView mInfoModel;
@@ -136,6 +142,12 @@ public class MainActivity extends Activity {
             }
         }, 1500);
         loadSystemInfo();
+        mPages.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                refreshNavBackdrop();
+            }
+        }, 700);
     }
 
     // ------------------------------------------------------------ 窗口
@@ -298,194 +310,57 @@ public class MainActivity extends Activity {
         return root;
     }
 
-    // ------------------------------------------------------------ 底部导航（Miuix 居中胶囊）
+    // ------------------------------------------------------------ 底部导航（miuix-nav 玻璃胶囊）
 
     private View buildBottomNav() {
         FrameLayout wrap = new FrameLayout(this);
         wrap.setBackgroundColor(0x00000000);
         wrap.setClipToPadding(false);
 
-        CouiCardView pillCard = new CouiCardView(this);
-        pillCard.setCardCornerRadiusDp(34);
-        pillCard.setCardBackgroundColor(0xF7FFFFFF);
-        pillCard.setCardBorderWidth(Math.max(1, dp(0.8f)));
-        pillCard.setCardBorderColor(0xFFEDEFF2);
-
-        LinearLayout pill = new LinearLayout(this);
-        pill.setOrientation(LinearLayout.HORIZONTAL);
-        pill.setGravity(Gravity.CENTER);
-        pill.setPadding(dp(8), dp(7), dp(8), dp(7));
-        pillCard.addView(pill, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        pill.addView(makeNavItem(0, "ic_nav_home", "首页", TAB_HOME));
-        pill.addView(makeNavItem(1, "ic_nav_folder", "目录管理", TAB_FILES));
-        pill.addView(makeNavItem(2, "ic_nav_settings", "设置", TAB_SETTINGS));
+        mMiuixNav = new MiuixNavBar(this);
+        mMiuixNav.addItem("首页", resId("ic_nav_home"));
+        mMiuixNav.addItem("目录管理", resId("ic_nav_folder"));
+        mMiuixNav.addItem("设置", resId("ic_nav_settings"));
+        mMiuixNav.listener(new MiuixNavBar.Listener() {
+            @Override
+            public void onSelect(int index) {
+                selectTab(index);
+            }
+        });
+        mMiuixNav.colors(C_NAV_ACTIVE_BG, C_ACCENT, 0xFF3A3F45);
+        mMiuixNav.installDrag();
 
         FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         plp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
         plp.bottomMargin = dp(12) + Math.max(mInsetBottom, dp(16));
-        pillCard.setLayoutParams(plp);
+        mMiuixNav.setLayoutParams(plp);
 
-        mNavPill = pillCard;
-        wrap.addView(pillCard);
-        installCapsuleDrag(pill);
+        mNavPill = mMiuixNav;
+        wrap.addView(mMiuixNav);
         return wrap;
     }
 
-    /** 胶囊可左右滑动：手指移到哪个选项就预览高亮，松手停在哪就切到哪页。 */
-    private void installCapsuleDrag(final LinearLayout pill) {
-        pill.setOnTouchListener(new View.OnTouchListener() {
-            private float downX;
-            private int preview = -1;
-            private boolean dragging;
-
-            @Override
-            public boolean onTouch(View v, MotionEvent e) {
-                switch (e.getActionMasked()) {
-                    case MotionEvent.ACTION_DOWN:
-                        downX = e.getX();
-                        preview = mTab;
-                        dragging = false;
-                        return true;
-                    case MotionEvent.ACTION_MOVE: {
-                        if (Math.abs(e.getX() - downX) > dp(6)) {
-                            dragging = true;
-                        }
-                        if (dragging) {
-                            int idx = navIndexAt(e.getX());
-                            if (idx >= 0 && idx != preview) {
-                                preview = idx;
-                                previewNavStyle(idx);
-                                v.performHapticFeedback(android.view.HapticFeedbackConstants
-                                        .CLOCK_TICK);
-                            }
-                        }
-                        return true;
-                    }
-                    case MotionEvent.ACTION_UP: {
-                        int idx = navIndexAt(e.getX());
-                        if (idx >= 0 && idx != mTab) {
-                            selectTab(idx);
-                        } else {
-                            restoreNavStyle();
-                        }
-                        preview = -1;
-                        dragging = false;
-                        return true;
-                    }
-                    case MotionEvent.ACTION_CANCEL:
-                        restoreNavStyle();
-                        preview = -1;
-                        dragging = false;
-                        return true;
-                    default:
-                        return false;
-                }
-            }
-        });
+    private int resId(String name) {
+        return getResources().getIdentifier(name, "drawable", getPackageName());
     }
 
-    /** 手指 x 落在第几个导航项上（相对胶囊坐标）；不在任何项上返回最近的。 */
-    private int navIndexAt(float x) {
-        int best = -1;
-        float bestDist = Float.MAX_VALUE;
-        for (int i = 0; i < TAB_COUNT; i++) {
-            LinearLayout item = mNavItems[i];
-            if (item == null) {
-                continue;
-            }
-            float left = item.getLeft();
-            float right = item.getRight();
-            if (x >= left && x <= right) {
-                return i;
-            }
-            float center = (left + right) / 2f;
-            float d = Math.abs(x - center);
-            if (d < bestDist) {
-                bestDist = d;
-                best = i;
-            }
-        }
-        return best;
-    }
-
-    private void previewNavStyle(int index) {
-        for (int i = 0; i < TAB_COUNT; i++) {
-            styleNavItem(i, i == index);
-        }
-    }
-
-    private void restoreNavStyle() {
-        for (int i = 0; i < TAB_COUNT; i++) {
-            styleNavItem(i, i == mTab);
-        }
-    }
-
-    private View makeNavItem(final int index, String iconName, String label, final int tab) {
-        LinearLayout item = new LinearLayout(this);
-        item.setOrientation(LinearLayout.VERTICAL);
-        item.setGravity(Gravity.CENTER);
-        item.setPadding(dp(14), dp(6), dp(14), dp(6));
-        item.setClickable(true);
-        item.setMinimumWidth(dp(74));
-
-        ImageView icon = new ImageView(this);
-        int resId = getResources().getIdentifier(iconName, "drawable", getPackageName());
-        if (resId != 0) {
-            icon.setImageResource(resId);
-        }
-        item.addView(icon, new LinearLayout.LayoutParams(dp(22), dp(22)));
-
-        TextView tv = UiConfig.text(this, label, 10.5f, C_DIM);
-        tv.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        tlp.topMargin = dp(3);
-        item.addView(tv, tlp);
-
-        item.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                selectTab(tab);
-            }
-        });
-
-        mNavItems[index] = item;
-        mNavIcons[index] = icon;
-        mNavLabels[index] = tv;
-        return item;
-    }
-
-    private void styleNavItem(int index, boolean active) {
-        LinearLayout item = mNavItems[index];
-        ImageView icon = mNavIcons[index];
-        TextView label = mNavLabels[index];
-        if (item == null) {
+    /** 刷新导航玻璃的磨砂底（抓取当前页面内容）。 */
+    private void refreshNavBackdrop() {
+        if (mMiuixNav == null || mPages == null) {
             return;
         }
-        int color = active ? C_ACCENT : 0xFF3A3F45;
-        if (active) {
-            android.graphics.drawable.GradientDrawable g =
-                    new android.graphics.drawable.GradientDrawable();
-            g.setColor(C_NAV_ACTIVE_BG);
-            g.setCornerRadius(dp(22));
-            item.setBackground(g);
-        } else {
-            item.setBackground(null);
-        }
-        if (icon != null) {
-            icon.setColorFilter(color);
-        }
-        if (label != null) {
-            label.setTextColor(color);
-            label.setTypeface(null, active ? android.graphics.Typeface.BOLD
-                    : android.graphics.Typeface.NORMAL);
-        }
+        mPages.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (mMiuixNav != null && mPages != null) {
+                    mMiuixNav.captureBackdrop(mPages);
+                }
+            }
+        }, 260);
     }
 
-    /** inset 变化时更新胶囊底部间距（避免被手势条裁掉）。 */
+    /** inset 变化时更新胶囊底部间距。 */
     private void updateNavBarInsets() {
         if (mNavPill == null) {
             return;
@@ -511,9 +386,10 @@ public class MainActivity extends Activity {
         if (mFilesCard != null) {
             mFilesCard.setVisibility(tab == TAB_FILES ? View.VISIBLE : View.GONE);
         }
-        for (int i = 0; i < TAB_COUNT; i++) {
-            styleNavItem(i, i == tab);
+        if (mMiuixNav != null && mMiuixNav.selected() != tab) {
+            mMiuixNav.select(tab, false);
         }
+        refreshNavBackdrop();
         // 切换页面淡入 + 轻微上浮
         View shown = tab == TAB_HOME ? mHomePage
                 : (tab == TAB_FILES ? mFilesCard : mSettingsPage);
@@ -610,11 +486,10 @@ public class MainActivity extends Activity {
         page.addView(head);
 
         // 状态卡：左右两个方块（左 = root 状态方块，右 = 终端方块）
-        CouiCardView statusCard = new CouiCardView(this);
-        statusCard.setCardCornerRadiusDp(20);
-        statusCard.setCardBackgroundColor(C_CARD);
-        statusCard.setCardBorderWidth(dp(0.8f));
-        statusCard.setCardBorderColor(C_LINE);
+        MiuixCard statusCard = new MiuixCard(this);
+        statusCard.radiusDp(MiuixTheme.RADIUS_CARD);
+        statusCard.fill(MiuixTheme.surface());
+        statusCard.stroke(MiuixTheme.outline(), 0.8f);
         mHomeStatusCard = statusCard;
 
         LinearLayout status = new LinearLayout(this);
@@ -624,10 +499,10 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         // ---------- 左方块：工作中（绿底 + 大对勾） ----------
-        CouiCardView leftBox = new CouiCardView(this);
-        leftBox.setCardCornerRadiusDp(16);
-        leftBox.setCardBackgroundColor(C_OK_BG);
-        leftBox.setCardBorderWidth(0);
+        MiuixGlass leftBox = new MiuixGlass(this);
+        leftBox.radiusDp(MiuixTheme.RADIUS_MEDIUM);
+        leftBox.tint(0xE8E7F7EC, 0xD9D7F0DF);
+        leftBox.rim(0x99FFFFFF, 0x141FA35B);
         mHomeStatusBox = leftBox;
 
         mHomeCheckBadge = new CouiCheckBadge(this);
@@ -678,10 +553,9 @@ public class MainActivity extends Activity {
         status.addView(leftBox, leftParams);
 
         // ---------- 右方块：终端 ----------
-        CouiCardView rightBox = new CouiCardView(this);
-        rightBox.setCardCornerRadiusDp(16);
-        rightBox.setCardBackgroundColor(C_ACCENT);
-        rightBox.setCardBorderWidth(0);
+        MiuixGlass rightBox = new MiuixGlass(this);
+        rightBox.radiusDp(MiuixTheme.RADIUS_MEDIUM);
+        rightBox.accentTint();
         rightBox.setClickable(true);
         rightBox.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -746,7 +620,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams c1 = new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         c1.rightMargin = dp(6);
-        cards.addView(storeCard, c1);
+        cards.addView((View) storeCard.getTag(), c1);
         mHomeStore = (TextView) storeCard.getChildAt(0);
         mHomeStoreSub = (TextView) storeCard.getChildAt(1);
 
@@ -754,15 +628,15 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams c2 = new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         c2.leftMargin = dp(6);
-        cards.addView(memCard, c2);
+        cards.addView((View) memCard.getTag(), c2);
         mHomeMem = (TextView) memCard.getChildAt(0);
         mHomeMemSub = (TextView) memCard.getChildAt(1);
 
         // 设备信息卡：设备名 / 内核版本 / 系统版本（coui 卡片组件）
-        CouiCardView devCardView = new CouiCardView(this);
-        devCardView.setCardCornerRadiusDp(20);
-        devCardView.setCardBackgroundColor(C_CARD);
-        devCardView.setCardBorderColor(C_LINE);
+        MiuixCard devCardView = new MiuixCard(this);
+        devCardView.radiusDp(MiuixTheme.RADIUS_CARD);
+        devCardView.fill(MiuixTheme.surface());
+        devCardView.stroke(MiuixTheme.outline(), 0.8f);
         LinearLayout devCard = new LinearLayout(this);
         devCard.setOrientation(LinearLayout.VERTICAL);
         devCardView.addView(devCard, new FrameLayout.LayoutParams(
@@ -825,10 +699,18 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout makeMetricCard(String label, String value) {
+        MiuixCard host = new MiuixCard(this);
+        host.radiusDp(MiuixTheme.RADIUS_CARD);
+        host.fill(MiuixTheme.surface());
+        host.stroke(MiuixTheme.outline(), 0.8f);
+
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackground(cardBgStroke(C_CARD, 18, C_LINE));
         card.setPadding(dp(16), dp(14), dp(16), dp(14));
+        host.addView(card, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        // 用 tag 把宿主带出去，外层加的是 host
+        card.setTag(host);
         TextView v = UiConfig.text(this, value, 19f, C_TEXT);
         v.setTypeface(v.getTypeface(), android.graphics.Typeface.BOLD);
         TextView l = UiConfig.text(this, label, 11f, C_DIM);
@@ -1317,30 +1199,90 @@ public class MainActivity extends Activity {
         page.setBackgroundColor(C_BG);
         page.setPadding(dp(20), dp(22), dp(20), dp(18));
 
-        TextView title = UiConfig.text(this, "设置", 32f, C_TEXT);
+        TextView title = UiConfig.text(this, "设置", MiuixTheme.TEXT_TITLE, C_TEXT);
         title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
         page.addView(title);
 
-        page.addView(makeSettingsCard(new String[][]{
-                {"界面风格", "MIUIX（HyperOS）"},
-                {"语言", "跟随系统"},
-                {"主题强调色", "Monet 自动取色"},
-        }));
-        page.addView(makeSettingsCard(new String[][]{
-                {"免 root 目录（SAF）", "选一个目录即可读写，无需权限"},
-                {"所有文件访问权限", "点按去系统设置授予"},
-                {"重新探测 root", "刷新 su 授权状态"},
-                {"终端", "打开全屏终端"},
-                {"关于 TF管理终端", "版本与使用说明"},
-                {"内置 bash", "首次运行脚本时自动释放"},
-        }));
-        page.addView(buildUpdateCard());
-        page.addView(makeSettingsCard(new String[][]{
-                {"版本", "v" + AppVersion.NAME + " (targetSdk 37)"},
-                {"编译", "minSdk 26 / compileSdk 36"},
-        }));
+        // ---------------- 外观（miuix-preference） ----------------
+        page.addView(gap(14));
+        MiuixPreference.Group look = MiuixPreference.group(this, "外观");
+        look.infoRow("界面风格", "Miuix（玻璃）");
+        look.infoRow("语言", "跟随系统");
+        look.infoRow("主题强调色", "Monet 自动取色");
+        page.addView(look.build());
 
-        TextView foot = UiConfig.text(this, "TF管理终端 · MIUIX 风格文件管理器", 10.5f, 0xFFA0A4AB);
+        // ---------------- 文件与权限 ----------------
+        page.addView(gap(14));
+        MiuixPreference.Group perms = MiuixPreference.group(this, "文件与权限");
+        perms.iconClickRow(resId("ic_nav_folder"), C_ACCENT,
+                "免 root 目录（SAF）", "选一个目录即可读写", "", new MiuixPreference.OnClick() {
+                    @Override
+                    public void onClick(View v) {
+                        showSaf(true);
+                    }
+                });
+        perms.iconClickRow(resId("ic_nav_root"), C_ACCENT,
+                "所有文件访问权限", "点按去系统设置授予", "", new MiuixPreference.OnClick() {
+                    @Override
+                    public void onClick(View v) {
+                        requestAllFilesAccess();
+                    }
+                });
+        perms.iconClickRow(resId("ic_nav_root"), C_OK,
+                "重新探测 root", "刷新 su 授权状态", "", new MiuixPreference.OnClick() {
+                    @Override
+                    public void onClick(View v) {
+                        toast("正在重新探测 root…");
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                final boolean ok = Shell.detectRoot();
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        refreshHome();
+                                        toast(ok ? "root 可用" : "未获取 root");
+                                    }
+                                });
+                            }
+                        }, "probe-root").start();
+                    }
+                });
+        page.addView(perms.build());
+
+        // ---------------- 工具 ----------------
+        page.addView(gap(14));
+        MiuixPreference.Group tools = MiuixPreference.group(this, "工具");
+        tools.iconClickRow(resId("ic_nav_terminal"), C_ACCENT,
+                "终端", "打开全屏终端", "", new MiuixPreference.OnClick() {
+                    @Override
+                    public void onClick(View v) {
+                        showTerminal(true);
+                    }
+                });
+        tools.infoRow("内置 bash", "首次运行脚本时自动释放");
+        tools.iconClickRow(resId("ic_nav_about"), C_ACCENT,
+                "关于 TF管理终端", "版本与使用说明", "", new MiuixPreference.OnClick() {
+                    @Override
+                    public void onClick(View v) {
+                        showAbout();
+                    }
+                });
+        page.addView(tools.build());
+
+        // ---------------- 更新 ----------------
+        page.addView(gap(14));
+        page.addView(buildUpdateCard());
+
+        // ---------------- 关于 ----------------
+        page.addView(gap(14));
+        MiuixPreference.Group about = MiuixPreference.group(this, "关于");
+        about.infoRow("版本", "v" + AppVersion.NAME + " (" + AppVersion.CODE + ")");
+        about.infoRow("编译", "minSdk 26 / compileSdk 36");
+        about.infoRow("目标", "targetSdk 37（Android 17）");
+        page.addView(about.build());
+
+        TextView foot = UiConfig.text(this, "TF管理终端 · Miuix 玻璃风格", 10.5f, 0xFFA0A4AB);
         foot.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams flp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -1358,188 +1300,54 @@ public class MainActivity extends Activity {
         return wrap;
     }
 
-    /** 「更新」设置卡：检查更新 / 自动检查（开关）/ 更新源地址。 */
+    /** 竖向间距占位。 */
+    private View gap(int dpValue) {
+        View v = new View(this);
+        v.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(dpValue)));
+        return v;
+    }
+
+    /** 更新源显示文案。 */
+    private String feedLabel() {
+        String feed = updateFeed();
+        if (isWebPageFeed(feed)) {
+            return "网盘页面";
+        }
+        if (feed.contains("api.github.com")) {
+            return "GitHub";
+        }
+        return "已设置";
+    }
+
+    /** 「更新」分组（miuix-preference）。 */
     private View buildUpdateCard() {
-        CouiCardView cardView = new CouiCardView(this);
-        cardView.setCardCornerRadiusDp(20);
-        cardView.setCardBackgroundColor(C_CARD);
-        cardView.setCardBorderColor(C_LINE);
-        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        clp.topMargin = dp(14);
-        cardView.setLayoutParams(clp);
+        MiuixPreference.Group g = MiuixPreference.group(this, "更新");
 
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        cardView.addView(card, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        // 检查更新
-        LinearLayout row1 = updateRow(card, "检查更新", "当前 v" + AppVersion.NAME + "，点按立即检查");
-        row1.setOnClickListener(new View.OnClickListener() {
+        g.clickRow("检查更新", "当前 v" + AppVersion.NAME, "", new MiuixPreference.OnClick() {
             @Override
             public void onClick(View v) {
                 manualCheckUpdate();
             }
         });
-        card.addView(lightLine());
 
-        // 自动检查（开关）
-        LinearLayout row2 = new LinearLayout(this);
-        row2.setOrientation(LinearLayout.HORIZONTAL);
-        row2.setGravity(Gravity.CENTER_VERTICAL);
-        row2.setPadding(dp(16), dp(14), dp(16), dp(14));
-        LinearLayout texts = new LinearLayout(this);
-        texts.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        texts.addView(UiConfig.text(this, "自动检查更新", 15f, C_TEXT));
-        TextView sub = UiConfig.text(this, "启动时自动向更新源查询", 11f, C_DIM);
-        sub.setPadding(0, dp(2), 0, 0);
-        texts.addView(sub);
-        row2.addView(texts, tlp);
-        final Switch sw = new Switch(this);
-        sw.setChecked(uiPrefs().getBoolean("update_auto", true));
-        sw.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(android.widget.CompoundButton b, boolean checked) {
-                uiPrefs().edit().putBoolean("update_auto", checked).apply();
-            }
-        });
-        row2.addView(sw);
-        row2.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                sw.toggle();
-            }
-        });
-        card.addView(row2);
-        card.addView(lightLine());
+        g.switchRow("自动检查更新", "启动时自动向更新源查询",
+                uiPrefs().getBoolean("update_auto", true),
+                new MiuixPreference.OnSwitch() {
+                    @Override
+                    public void onChanged(boolean checked) {
+                        uiPrefs().edit().putBoolean("update_auto", checked).apply();
+                    }
+                });
 
-        // 更新源地址
-        final TextView feedValue = UiConfig.text(this, feedLabel(), 12f, C_DIM);
-        LinearLayout row3 = updateRow(card, "更新源地址", null);
-        LinearLayout.LayoutParams flp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        flp.leftMargin = dp(8);
-        row3.addView(feedValue, flp);
-        row3.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                promptUpdateFeed();
-                feedValue.setText(feedLabel());
-            }
-        });
-        feedValue.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
-            @Override
-            public void onViewAttachedToWindow(View v) {
-                feedValue.setText(feedLabel());
-            }
-
-            @Override
-            public void onViewDetachedFromWindow(View v) {
-            }
-        });
-        return cardView;
-    }
-
-    private String feedLabel() {
-        String feed = updateFeed();
-        if (isWebPageFeed(feed)) {
-            return "夸克网盘 ›";
-        }
-        return "已设置 ›";
-    }
-
-    /** 一行：标题 + 副标题，右侧留空（由调用方追加）。 */
-    private LinearLayout updateRow(LinearLayout parent, String title, String desc) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(16), dp(14), dp(16), dp(14));
-        LinearLayout texts = new LinearLayout(this);
-        texts.setOrientation(LinearLayout.VERTICAL);
-        texts.addView(UiConfig.text(this, title, 15f, C_TEXT));
-        if (desc != null) {
-            TextView d = UiConfig.text(this, desc, 11f, C_DIM);
-            d.setPadding(0, dp(2), 0, 0);
-            texts.addView(d);
-        }
-        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        row.addView(texts, tlp);
-        return row;
-    }
-
-    private View makeSettingsCard(String[][] rows) {
-        CouiCardView cardView = new CouiCardView(this);
-        cardView.setCardCornerRadiusDp(20);
-        cardView.setCardBackgroundColor(C_CARD);
-        cardView.setCardBorderColor(C_LINE);
-        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        clp.topMargin = dp(14);
-        cardView.setLayoutParams(clp);
-
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        cardView.addView(card, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        for (int i = 0; i < rows.length; i++) {
-            final String key = rows[i][0];
-            final String value = rows[i][1];
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(dp(16), dp(15), dp(16), dp(15));
-            row.setClickable(true);
-            row.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    onSettingsRow(key);
-                }
-            });
-            TextView t = UiConfig.text(this, key, 15f, C_TEXT);
-            row.addView(t, new LinearLayout.LayoutParams(0,
-                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            TextView val = UiConfig.text(this, value, 12.5f, C_DIM);
-            val.setSingleLine(true);
-            row.addView(val);
-            TextView chev = UiConfig.text(this, "›", 18f, 0xFFB6BBC3);
-            LinearLayout.LayoutParams chp = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            chp.leftMargin = dp(6);
-            row.addView(chev, chp);
-            card.addView(row);
-            if (i != rows.length - 1) {
-                card.addView(lightLine());
-            }
-        }
-        return cardView;
-    }
-
-    private void onSettingsRow(String key) {
-        if ("免 root 目录（SAF）".equals(key)) {
-            showSaf(true);
-        } else if ("所有文件访问权限".equals(key)) {
-            requestAllFilesAccess();
-        } else if ("重新探测 root".equals(key)) {
-            toast("正在重新探测 root…");
-            Shell.detectRootAsync(new Runnable() {
-                @Override
-                public void run() {
-                    refreshHome();
-                    toast(Shell.isRoot() ? "root 权限已获取" : "仍未获取 root");
-                }
-            });
-        } else if ("终端".equals(key)) {
-            showTerminal(true);
-        } else if ("关于 TF管理终端".equals(key)) {
-            showAbout();
-        } else {
-            toast(key);
-        }
+        g.clickRow("更新源地址", "GitHub Releases / 自定义 JSON", feedLabel(),
+                new MiuixPreference.OnClick() {
+                    @Override
+                    public void onClick(View v) {
+                        promptUpdateFeed();
+                    }
+                });
+        return g.build();
     }
 
     // ------------------------------------------------------------ 终端（全屏）
@@ -1640,12 +1448,17 @@ public class MainActivity extends Activity {
             mHomeStatus.setText(root ? "工作中" : "未获取 root");
         }
         if (mHomeStatusCard != null) {
-            mHomeStatusCard.setCardBackgroundColor(C_CARD);
-            mHomeStatusCard.setCardBorderColor(C_LINE);
+            mHomeStatusCard.fill(MiuixTheme.surface());
         }
-        // 左边状态方块：root 时绿底，否则浅灰底
+        // 左边状态方块：root 时绿色玻璃，否则灰色玻璃
         if (mHomeStatusBox != null) {
-            mHomeStatusBox.setCardBackgroundColor(root ? C_OK_BG : 0xFFF2F3F5);
+            if (root) {
+                mHomeStatusBox.tint(0xE8E7F7EC, 0xD9D7F0DF);
+                mHomeStatusBox.rim(0x99FFFFFF, 0x141FA35B);
+            } else {
+                mHomeStatusBox.tint(0xE8F2F3F5, 0xD9EDEFF2);
+                mHomeStatusBox.rim(0x99FFFFFF, 0x14000000);
+            }
         }
         if (mHomeCheckBadge != null) {
             mHomeCheckBadge.setVisibility(root ? View.VISIBLE : View.GONE);
@@ -1829,55 +1642,96 @@ public class MainActivity extends Activity {
     }
 
     /** 捐赠弹窗：感谢语 + 赞赏码。 */
+    /** 赞赏（miuix-window 玻璃窗口）。 */
     private void showDonateDialog() {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(dp(20), dp(8), dp(20), dp(4));
 
-        TextView thanks = UiConfig.text(this, "感谢您支持本项目，我将努力开发！", 14.5f, 0xFF191919);
+        TextView thanks = UiConfig.text(this, "感谢您支持本项目，我将努力开发！",
+                14.5f, MiuixTheme.onSurface());
         thanks.setGravity(Gravity.CENTER);
-        thanks.setPadding(0, dp(6), 0, dp(12));
+        thanks.setPadding(0, dp(4), 0, dp(12));
         box.addView(thanks);
 
         ImageView qr = new ImageView(this);
-        int resId = getResources().getIdentifier("donate", "drawable", getPackageName());
-        if (resId != 0) {
-            qr.setImageResource(resId);
+        int qres = getResources().getIdentifier("donate", "drawable", getPackageName());
+        if (qres != 0) {
+            qr.setImageResource(qres);
         }
         qr.setAdjustViewBounds(true);
         qr.setScaleType(ImageView.ScaleType.FIT_CENTER);
         box.addView(qr, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(300)));
 
-        TextView tip = UiConfig.text(this, "「TF管理终端」的赞赏码", 11.5f, 0xFF8A8F98);
+        TextView tip = UiConfig.text(this, "「TF管理终端」的赞赏码", 11.5f,
+                MiuixTheme.onSurfaceVariant());
         tip.setGravity(Gravity.CENTER);
-        tip.setPadding(0, dp(10), 0, dp(2));
+        tip.setPadding(0, dp(8), 0, 0);
         box.addView(tip);
 
-        ScrollView sv = new ScrollView(this);
-        sv.setBackgroundColor(0xFFFFFFFF);
-        sv.addView(box);
-
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Light_Dialog_Alert)
-                .setView(sv)
-                .setPositiveButton("关闭", null)
+        MiuixWindow.builder(this)
+                .title("赞赏")
+                .content(box)
+                .scrollable(false)
+                .positive("关闭", null)
                 .show();
     }
 
+    /** 关于（miuix-window 玻璃窗口 + miuix-preference 信息行）。 */
     private void showAbout() {
-        String msg = "TF管理终端 v" + AppVersion.NAME + "\n\n"
-                + "· 底部导航：首页 · 目录管理 · 设置\n"
-                + "· 目录管理：左右双栏、浅色 MIUIX 列表、‹ › ＋ ⇄ ↑ 底栏\n"
-                + "· 终端：首页/设置里「终端」打开，全屏，左上角 ← 返回\n"
-                + "· 图标：MDI（Apache-2.0）矢量字形 + MIUIX 色块\n"
-                + "· 编译目标：minSdk 26（Android 8.0），targetSdk 37（Android 17）\n"
-                + "· 纯本地：不联网、不收集数据、无第三方 SDK\n\n"
-                + "警告：root 权限下执行命令/删除文件不可撤销，请确认后再操作。\n"
-                + "本 App 不包含 root，需设备自行 root（Magisk / KernelSU）。";
-        new AlertDialog.Builder(this)
-                .setTitle("关于 TF管理终端")
-                .setMessage(msg)
-                .setPositiveButton("知道了", null)
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+
+        // 玻璃图标 + 名称
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+
+        FrameLayout tile = MiuixIcons.glassTile(this, resId("ic_nav_terminal"),
+                MiuixTheme.onPrimary(), 46, 24, MiuixTheme.primary());
+        head.addView(tile);
+
+        LinearLayout names = new LinearLayout(this);
+        names.setOrientation(LinearLayout.VERTICAL);
+        TextView appName = UiConfig.text(this, "TF管理终端", 17f, MiuixTheme.onSurface());
+        appName.setTypeface(appName.getTypeface(), android.graphics.Typeface.BOLD);
+        names.addView(appName);
+        names.addView(UiConfig.text(this, "v" + AppVersion.NAME + " (" + AppVersion.CODE + ")",
+                11.5f, MiuixTheme.onSurfaceVariant()));
+        LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        np.leftMargin = dp(12);
+        head.addView(names, np);
+        box.addView(head);
+
+        // 信息行
+        MiuixPreference.Group info = MiuixPreference.group(this, null);
+        info.infoRow("界面", "Miuix 玻璃风格");
+        info.infoRow("导航", "首页 · 目录管理 · 设置");
+        info.infoRow("终端", "全屏 · 可交互 · 内置 bash");
+        info.infoRow("编译", "minSdk 26 / targetSdk 37");
+        info.infoRow("图标", "MDI（Apache-2.0）");
+        info.infoRow("隐私", "纯本地，不收集数据");
+        View card = info.build();
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        cp.topMargin = dp(14);
+        box.addView(card, cp);
+
+        TextView warn = UiConfig.text(this,
+                "警告：root 权限下执行命令、删除文件不可撤销，请确认后再操作。"
+                        + "本 App 不包含 root，需设备自行 root（Magisk / KernelSU / APatch）。",
+                11f, 0xFFC0392B);
+        warn.setLineSpacing(dp(2), 1f);
+        LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        wp.topMargin = dp(12);
+        box.addView(warn, wp);
+
+        MiuixWindow.builder(this)
+                .title("关于")
+                .content(box)
+                .positive("知道了", null)
                 .show();
     }
 

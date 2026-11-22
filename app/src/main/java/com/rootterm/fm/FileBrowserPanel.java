@@ -35,7 +35,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.coui.widget.CouiCardView;
+import com.miuix.ui.MiuixCard;
 
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -954,16 +954,15 @@ public class FileBrowserPanel extends LinearLayout {
     private RowHolder buildRow() {
         RowHolder h = new RowHolder();
 
-        // coui 卡片行：外层用 padding 模拟条目间距（ListView item 不支持 margin）
+        // miuix 超椭圆卡片行：外层用 padding 模拟条目间距（ListView item 不支持 margin）
         LinearLayout wrap = new LinearLayout(ctx);
         wrap.setOrientation(LinearLayout.VERTICAL);
         wrap.setLayoutParams(new AbsListView.LayoutParams(MATCH, WRAP));
         wrap.setPadding(dpI(10), dpI(3), dpI(10), dpI(3));
 
-        CouiCardView card = new CouiCardView(ctx);
-        card.setCardCornerRadiusDp(14);
-        card.setCardBackgroundColor(F_BG);
-        card.setCardBorderWidth(0);
+        MiuixCard card = new MiuixCard(ctx);
+        card.radiusDp(14);
+        card.fill(F_BG);
         wrap.addView(card, new LinearLayout.LayoutParams(MATCH, WRAP));
 
         LinearLayout row = new LinearLayout(ctx);
