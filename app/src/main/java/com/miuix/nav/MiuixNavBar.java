@@ -69,7 +69,8 @@ public class MiuixNavBar extends FrameLayout {
 
         // 胶囊本体：液态玻璃
         mPill = MiuixGlass.pill(c);
-        mPill.paddingDp(8, 7, 8, 7);
+        mPill.radiusDp(120);          // 超过高度一半 → 自动收敛为完美胶囊
+        mPill.paddingDp(10, 7, 10, 7);
         FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(
                 LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
         addView(mPill, plp);
@@ -143,9 +144,9 @@ public class MiuixNavBar extends FrameLayout {
         LinearLayout item = new LinearLayout(getContext());
         item.setOrientation(LinearLayout.VERTICAL);
         item.setGravity(Gravity.CENTER);
-        item.setPadding(MiuixTheme.dp(getContext(), 14), MiuixTheme.dp(getContext(), 6),
-                MiuixTheme.dp(getContext(), 14), MiuixTheme.dp(getContext(), 6));
-        item.setMinimumWidth(MiuixTheme.dp(getContext(), 74));
+        item.setPadding(MiuixTheme.dp(getContext(), 9), MiuixTheme.dp(getContext(), 6),
+                MiuixTheme.dp(getContext(), 9), MiuixTheme.dp(getContext(), 6));
+        item.setMinimumWidth(MiuixTheme.dp(getContext(), 54));
 
         ImageView icon = new ImageView(getContext());
         if (iconRes != 0) {
