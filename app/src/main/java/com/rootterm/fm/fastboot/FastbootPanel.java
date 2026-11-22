@@ -36,7 +36,7 @@ import java.util.Locale;
  */
 public class FastbootPanel extends LinearLayout {
 
-    private static final String OUT_BACKUP = "/sdcard/Download/TF分区备份";
+    private static final String OUT_BACKUP = "/sdcard/Download";
 
     private final Context ctx;
     private final UsbManager usb;
@@ -576,10 +576,10 @@ public class FastbootPanel extends LinearLayout {
             }));
         }
         if ("/sdcard/Download".equals(dir) || "/sdcard".equals(dir)) {
-            listBox.addView(pickerRow("📁 TF分区备份", true, new OnClickListener() {
+            listBox.addView(pickerRow("📥 下载目录", true, new OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    fillPicker(listBox, pathView, "/sdcard/Download/TF分区备份", part, dlg);
+                    fillPicker(listBox, pathView, "/sdcard/Download", part, dlg);
                 }
             }));
         }
@@ -836,7 +836,7 @@ public class FastbootPanel extends LinearLayout {
         }
         final EditText et = new EditText(ctx);
         et.setSingleLine(true);
-        et.setHint("/sdcard/Download/TF分区备份/" + p.name + ".img");
+        et.setHint("/sdcard/Download/" + p.name + ".img");
         et.setText(defaultImageFor(p.name));
 
         LinearLayout box = new LinearLayout(ctx);

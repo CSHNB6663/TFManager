@@ -18,6 +18,7 @@ import com.miuix.ui.MiuixCard;
 import com.miuix.ui.MiuixTheme;
 import com.miuix.window.MiuixWindow;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -30,7 +31,7 @@ import java.util.Locale;
 public class PartitionPanel extends LinearLayout {
 
     /** 备份/提取输出根目录。 */
-    private static final String OUT_BACKUP = "/sdcard/Download/TF分区备份";
+    private static final String OUT_BACKUP = "/sdcard/Download";
     private static final String OUT_EXTRACT = "/sdcard/Download/TF分区提取";
     /** 只读挂载点根目录。 */
     private static final String MOUNT_ROOT = "/data/local/tmp/tfpart";
@@ -605,7 +606,7 @@ public class PartitionPanel extends LinearLayout {
         TextView warn = new TextView(ctx);
         warn.setText("即将备份分区 " + p.name + "\n\n"
                 + "读取量：约 " + human(p.size) + "\n"
-                + "输出到：" + out + "\n\n"
+                + "保存到：" + out + "\n\n"
                 + "过程中请勿断开存储或退出应用。");
         warn.setTextSize(12f);
         warn.setTextColor(0xFF8A5A00);
@@ -728,7 +729,7 @@ public class PartitionPanel extends LinearLayout {
         }
         final android.widget.EditText et = new android.widget.EditText(ctx);
         et.setSingleLine(true);
-        et.setHint("/sdcard/Download/TF分区备份/xxx.img");
+        et.setHint("/sdcard/Download/xxx.img");
         et.setText(lastBackupFor(p.name));
 
         LinearLayout box = new LinearLayout(ctx);
@@ -745,12 +746,39 @@ public class PartitionPanel extends LinearLayout {
         warn.setLineSpacing(dp(2), 1f);
         box.addView(warn);
 
+        LinearLayout labelRow = new LinearLayout(ctx);
+        labelRow.setOrientation(HORIZONTAL);
+        labelRow.setGravity(Gravity.CENTER_VERTICAL);
+        labelRow.setPadding(0, dp(12), 0, dp(4));
+
         TextView label = new TextView(ctx);
-        label.setText("镜像文件路径");
+        label.setText("镜像文件");
         label.setTextSize(11.5f);
         label.setTextColor(MiuixTheme.onSurfaceVariant());
-        label.setPadding(0, dp(12), 0, dp(4));
-        box.addView(label);
+        labelRow.addView(label, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView pick = new TextView(ctx);
+        pick.setText("选择文件");
+        pick.setTextSize(11.5f);
+        pick.setTextColor(MiuixTheme.primary());
+        pick.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        pick.setPadding(dp(8), dp(4), dp(2), dp(4));
+        pick.setClickable(true);
+        pick.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ImagePicker.show(ctx, "选择镜像", "/sdcard/Download",
+                        new ImagePicker.OnPick() {
+                            @Override
+                            public void onPick(File f) {
+                                et.setText(f.getAbsolutePath());
+                            }
+                        });
+            }
+        });
+        labelRow.addView(pick);
+        box.addView(labelRow);
 
         box.addView(et, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
