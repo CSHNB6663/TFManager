@@ -113,6 +113,28 @@ public final class MiuixBlur {
         }
     }
 
+    /**
+     * 从整张模糊图里裁出指定区域（用于把「胶囊背后的那块」做成磨砂）。
+     * 越界会自动收敛到图内。
+     */
+    public static Bitmap cropRegion(Bitmap full, int left, int top, int w, int h) {
+        if (full == null || full.isRecycled() || w <= 0 || h <= 0) {
+            return null;
+        }
+        int fl = Math.max(0, Math.min(left, full.getWidth() - 1));
+        int ft = Math.max(0, Math.min(top, full.getHeight() - 1));
+        int fw = Math.min(w, full.getWidth() - fl);
+        int fh = Math.min(h, full.getHeight() - ft);
+        if (fw <= 0 || fh <= 0) {
+            return null;
+        }
+        try {
+            return Bitmap.createBitmap(full, fl, ft, fw, fh);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     /** 抓取整个 Activity 内容（不含状态栏）并模糊。 */
     public static Bitmap backdropOfActivity(Activity a, float downscale) {
         if (a == null) {

@@ -161,6 +161,38 @@ public class MiuixGlass extends FrameLayout {
         invalidate();
     }
 
+    /** 只抓「自己背后那块」做磨砂底（空间正确，真正的磨砂玻璃）。 */
+    public void captureBackdropRegion(final android.view.View src, final float downscale) {
+        if (src == null) {
+            return;
+        }
+        post(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    int[] sLoc = new int[2];
+                    int[] mLoc = new int[2];
+                    src.getLocationInWindow(sLoc);
+                    getLocationInWindow(mLoc);
+                    int left = mLoc[0] - sLoc[0];
+                    int top = mLoc[1] - sLoc[1];
+                    Bitmap full = MiuixBlur.backdrop(src, downscale);
+                    if (full == null) {
+                        return;
+                    }
+                    Bitmap crop = MiuixBlur.cropRegion(full, left, top,
+                            getWidth(), getHeight());
+                    if (crop != null) {
+                        setBackdrop(crop);
+                    } else {
+                        full.recycle();
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        });
+    }
+
     /** 抓取指定 View 的内容做磨砂底。 */
     public void captureBackdrop(final View src) {
         if (src == null) {

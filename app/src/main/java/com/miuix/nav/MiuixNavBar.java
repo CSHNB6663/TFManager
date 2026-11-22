@@ -71,6 +71,10 @@ public class MiuixNavBar extends FrameLayout {
         mPill = MiuixGlass.pill(c);
         mPill.radiusDp(120);          // 超过高度一半 → 自动收敛为完美胶囊
         mPill.paddingDp(10, 7, 10, 7);
+        // 磨砂观感：高不透明白 + 轻棱边 + 关闭镜面反光
+        mPill.tint(0xF0FFFFFF, 0xE6FFFFFF);
+        mPill.rim(0x40FFFFFF, 0x12000000);
+        mPill.specular(false);
         FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(
                 LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
         addView(mPill, plp);
@@ -103,9 +107,14 @@ public class MiuixNavBar extends FrameLayout {
                 LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
     }
 
-    /** 磨砂底：抓取页面内容。 */
+    /** 磨砂底：抓取页面内容（整页拉伸，仅兜底用）。 */
     public void captureBackdrop(View src) {
         mPill.captureBackdrop(src);
+    }
+
+    /** 磨砂底：只抓胶囊背后那块，空间正确。 */
+    public void captureBackdropRegion(View src) {
+        mPill.captureBackdropRegion(src, 14f);
     }
 
     /** 自动磨砂：玻璃持续跟随背后页面。 */

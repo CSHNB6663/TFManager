@@ -431,10 +431,23 @@ public class MainActivity extends Activity {
         FrameLayout wrap = new FrameLayout(this);
         wrap.setBackgroundColor(0x00000000);
         wrap.setClipToPadding(false);
+        // 容器：底部留出胶囊高度 + 渐隐区
         FrameLayout.LayoutParams wlp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(120));
         wlp.gravity = Gravity.BOTTOM;
         wrap.setLayoutParams(wlp);
+
+        // 底部渐隐遮罩：从完全透明渐变到页面底色（底部不透明 → 与背景无缝）
+        View scrim = new View(this);
+        android.graphics.drawable.GradientDrawable gd =
+                new android.graphics.drawable.GradientDrawable(
+                        android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                        new int[]{0x00E6EDF9, 0x66E6EDF9, 0xD9E6EDF9, 0xFFE6EDF9});
+        scrim.setBackground(gd);
+        scrim.setClickable(false);
+        scrim.setFocusable(false);
+        wrap.addView(scrim, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         mMiuixNav = new MiuixNavBar(this);
         mMiuixNav.addItem("首页", resId("ic_nav_home"));
