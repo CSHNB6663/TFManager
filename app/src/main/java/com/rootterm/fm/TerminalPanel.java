@@ -118,6 +118,12 @@ public class TerminalPanel extends LinearLayout {
     public void onPanelShown() {
         if (inputView != null) {
             inputView.requestFocus();
+        inputView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showKeyboard();
+            }
+        });
             inputView.setSelection(inputView.getText().length());
         }
         scrollToBottom();
@@ -454,6 +460,37 @@ public class TerminalPanel extends LinearLayout {
         return ident + "@android:" + cwd + tail;
     }
 
+    /** 主动弹出软键盘（ColorOS 等 ROM 上仅 requestFocus 不会弹）。 */
+    private void showKeyboard() {
+        if (inputView == null) {
+            return;
+        }
+        inputView.setFocusable(true);
+        inputView.setFocusableInTouchMode(true);
+        inputView.requestFocus();
+        inputView.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    android.view.inputmethod.InputMethodManager imm =
+                            (android.view.inputmethod.InputMethodManager)
+                                    getContext().getSystemService(
+                                            android.content.Context.INPUT_METHOD_SERVICE);
+                    if (imm != null) {
+                        imm.showSoftInput(inputView,
+                                android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        }, 120);
+    }
+
+    /** 供宿主在显示终端时调用，确保输入行可输入。 */
+    public void focusInput() {
+        showKeyboard();
+    }
+
     private void setRunning(boolean isRunning) {
         running = isRunning;
         if (inputView != null) {
@@ -466,7 +503,7 @@ public class TerminalPanel extends LinearLayout {
             promptView.setTextColor(isRunning ? UiConfig.TEXT_DIM : UiConfig.ACCENT);
         }
         if (!isRunning && inputView != null) {
-            inputView.requestFocus();
+            showKeyboard();
         }
     }
 
@@ -474,7 +511,7 @@ public class TerminalPanel extends LinearLayout {
     private void enterInteractiveUi(boolean on) {
         if (inputView != null) {
             inputView.setEnabled(true);
-            inputView.requestFocus();
+            showKeyboard();
         }
         if (runBtn != null) {
             runBtn.setEnabled(true);

@@ -1658,6 +1658,16 @@ public class MainActivity extends Activity {
     private void showTerminal(boolean show) {
         mTermVisible = show;
         mTermCard.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (show && mTerminal != null) {
+            mTerminal.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (mTerminal != null) {
+                        mTerminal.focusInput();
+                    }
+                }
+            }, 250);
+        }
         if (show) {
             mTermCard.requestFocus();
             mTerminal.onPanelShown();
