@@ -492,24 +492,42 @@ public class FileBrowserPanel extends LinearLayout {
         t.start();
     }
 
+    /** ls 是否支持 GNU 的 --time-style（只探测一次）。 */
+    private static Boolean sTimeStyle;
+
     private LoadResult load(String dir) {
         final LoadResult res = new LoadResult();
         final String q = Shell.quote(dir);
 
-        String out = safeExec("ls -la --time-style=+%Y-%m-%d_%H:%M " + q + " 2>&1", 20000);
+        String out;
+        if (sTimeStyle == null) {
+            // 首次：探测 --time-style 支持情况（toybox 老版本不支持）
+            out = safeExec("ls -la --time-style=+%Y-%m-%d_%H:%M " + q + " 2>&1", 20000);
+            if (isUnsupportedOption(out)) {
+                sTimeStyle = Boolean.FALSE;
+                out = safeExec("ls -la " + q + " 2>&1", 20000);
+            } else {
+                sTimeStyle = Boolean.TRUE;
+            }
+        } else if (sTimeStyle) {
+            out = safeExec("ls -la --time-style=+%Y-%m-%d_%H:%M " + q + " 2>&1", 20000);
+        } else {
+            out = safeExec("ls -la " + q + " 2>&1", 20000);
+        }
         if (containsIgnoreCase(out, "permission denied")) {
             res.denied = true;
         }
         parseLs(out, dir, res);
 
-        if (res.entries.isEmpty()) {
-            // toybox 不支持 --time-style：降级为普通长列表
+        if (res.entries.isEmpty() && isUnsupportedOption(out)) {
+            // 该机型不支持 --time-style：降级并记住
+            sTimeStyle = Boolean.FALSE;
             String out2 = safeExec("ls -la " + q + " 2>&1", 20000);
             if (containsIgnoreCase(out2, "permission denied")) {
                 res.denied = true;
             }
             parseLs(out2, dir, res);
-            out = out + "\n" + out2;
+            out = out2;
         }
         if (res.entries.isEmpty()) {
             // 再兜底：cd 进去用 stat 逐项格式化
@@ -2786,6 +2804,9 @@ public class FileBrowserPanel extends LinearLayout {
             if (t.isEmpty() || t.startsWith("total ")) {
                 continue;
             }
+            if (isUnsupportedOption(t)) {
+                continue;   // ls 选项不支持属于探测失败，不算目录加载失败
+            }
             if (looksLikeError(t)) {
                 return firstLine(t);
             }
@@ -2807,6 +2828,19 @@ public class FileBrowserPanel extends LinearLayout {
                 || l.contains("not found") || l.contains("invalid option")
                 || l.contains("unknown option") || l.contains("unrecognized option")
                 || l.contains("not a directory");
+    }
+
+    /** 是否是「ls 不认识某个选项」这类错误（不该显示成加载失败）。 */
+    private static boolean isUnsupportedOption(String out) {
+        if (out == null) {
+            return false;
+        }
+        String o = out.toLowerCase(Locale.US);
+        return o.contains("unknown option")
+                || o.contains("unrecognized option")
+                || o.contains("invalid option")
+                || o.contains("illegal option")
+                || o.contains("time-style");
     }
 
     private static boolean containsIgnoreCase(String hay, String needle) {
