@@ -76,7 +76,7 @@ public class MainActivity extends Activity {
     private static final int C_OK_BG = 0xFFE7F7EC;
     private static int C_NAV_ACTIVE_BG = 0xFFE8F0FF;
 
-    private FrameLayout mPages;   // 实际是 SwipeBox
+    private SwipeBox mPages;   // 实际是 SwipeBox
     private LinearLayout mHomePage;
     private LinearLayout mSettingsPage;
     private DualFilePanel mFiles;
@@ -225,6 +225,12 @@ public class MainActivity extends Activity {
         private float downX;
         private float downY;
         private boolean handled;
+        /** false 时完全不拦截触摸（WebView 内的滑块/拖动需要原始事件）。 */
+        private boolean interceptEnabled = true;
+
+        void setInterceptEnabled(boolean enabled) {
+            interceptEnabled = enabled;
+        }
 
         SwipeBox(Context ctx, Callback cb) {
             super(ctx);
@@ -233,6 +239,9 @@ public class MainActivity extends Activity {
 
         @Override
         public boolean onInterceptTouchEvent(MotionEvent ev) {
+            if (!interceptEnabled) {
+                return false;
+            }
             switch (ev.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                     downX = ev.getX();
@@ -342,14 +351,18 @@ public class MainActivity extends Activity {
         mPages.addView(mSafCard, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        // 番茄登录浮层
+        // 番茄登录浮层（挂在 mPages 之外，避免切页手势抢走滑块拖动）
         mFanqieCard = new FrameLayout(this);
         mFanqieCard.setBackgroundColor(0xFFFFFFFF);
         mFanqieCard.setVisibility(View.GONE);
-        mPages.addView(mFanqieCard, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         root.addView(buildBottomNav());   // 高度与 gravity 由 buildBottomNav 自己设定
+
+        // 番茄登录浮层放最上层（不属于 SwipeBox，手势不被拦截）
+        if (mFanqieCard != null) {
+            root.addView(mFanqieCard, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
 
         installInsets(root);
         return root;
@@ -2037,9 +2050,15 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         mFanqieCard.setVisibility(View.VISIBLE);
         mFanqieCard.bringToFront();
+        if (mPages != null) {
+            mPages.setInterceptEnabled(false);   // 让滑块验证能正常拖动
+        }
     }
 
     private void closeFanqieLogin() {
+        if (mPages != null) {
+            mPages.setInterceptEnabled(true);
+        }
         if (mFanqieCard != null) {
             mFanqieCard.setVisibility(View.GONE);
             mFanqieCard.removeAllViews();
