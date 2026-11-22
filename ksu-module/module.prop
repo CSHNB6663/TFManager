@@ -1,0 +1,6 @@
+id=TFManager
+name=TF管理终端
+version=v5.4.0
+versionCode=540
+author=酷安@云中语
+description=文件管理 + root 终端 + 分区刷写。以 KernelSU 模块方式安装为系统应用，magic mount 叠加，不修改真实 system 分区，不覆盖已有文件。

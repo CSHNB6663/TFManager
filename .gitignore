@@ -11,3 +11,7 @@ tools/out/gen/
 # 系统
 .DS_Store
 Thumbs.db
+
+# KernelSU 模块构建产物（内含 APK，不入库）
+ksu-module/system/
+*.zip
