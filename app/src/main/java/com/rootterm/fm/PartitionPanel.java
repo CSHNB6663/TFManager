@@ -271,9 +271,10 @@ public class PartitionPanel extends LinearLayout {
         LinearLayout row = new LinearLayout(ctx);
         row.setOrientation(HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(16), dp(12), dp(16), dp(12));
+        row.setPadding(dp(14), dp(11), dp(12), dp(11));
         row.setClickable(true);
 
+        // 彩色类型图标
         FrameLayout tile = new FrameLayout(ctx);
         android.graphics.drawable.GradientDrawable bg =
                 new android.graphics.drawable.GradientDrawable();
@@ -292,12 +293,15 @@ public class PartitionPanel extends LinearLayout {
         tile.addView(iv, ip);
         row.addView(tile, new LinearLayout.LayoutParams(dp(36), dp(36)));
 
+        // 名称 + 大小/节点
         LinearLayout texts = new LinearLayout(ctx);
         texts.setOrientation(VERTICAL);
         TextView name = new TextView(ctx);
         name.setText(p.name);
         name.setTextSize(14.5f);
         name.setTextColor(MiuixTheme.onSurface());
+        name.setSingleLine(true);
+        name.setEllipsize(android.text.TextUtils.TruncateAt.END);
         texts.addView(name);
         TextView sub = new TextView(ctx);
         sub.setText(human(p.size) + " · " + p.path);
@@ -309,14 +313,39 @@ public class PartitionPanel extends LinearLayout {
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         tp.leftMargin = dp(12);
+        tp.rightMargin = dp(8);
         row.addView(texts, tp);
 
-        TextView chev = new TextView(ctx);
-        chev.setText("›");
-        chev.setTextSize(18f);
-        chev.setTextColor(0xFFB6BBC3);
-        row.addView(chev);
+        // 右侧：备份 / 刷写 两个小按钮
+        LinearLayout btns = new LinearLayout(ctx);
+        btns.setOrientation(HORIZONTAL);
+        btns.setGravity(Gravity.CENTER_VERTICAL);
 
+        TextView backup = miniButton("备份", MiuixTheme.primaryContainer(),
+                ThemeColors.ON_ACCENT_CONTAINER);
+        backup.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                extractImage(p);
+            }
+        });
+        btns.addView(backup);
+
+        TextView flash = miniButton("刷写", 0x14E8481F, MiuixTheme.error());
+        LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        fp.leftMargin = dp(6);
+        flash.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                flashPartition(p);
+            }
+        });
+        btns.addView(flash, fp);
+
+        row.addView(btns);
+
+        // 点整行 → 更多（提取分区内文件 / 详情）
         row.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -324,6 +353,26 @@ public class PartitionPanel extends LinearLayout {
             }
         });
         return row;
+    }
+
+    /** 行内小按钮。 */
+    private TextView miniButton(String text, int bgColor, int fgColor) {
+        TextView b = new TextView(ctx);
+        b.setText(text);
+        b.setTextSize(11.5f);
+        b.setTextColor(fgColor);
+        b.setGravity(Gravity.CENTER);
+        b.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        b.setPadding(dp(12), dp(6), dp(12), dp(6));
+        b.setClickable(true);
+        android.graphics.drawable.GradientDrawable g =
+                new android.graphics.drawable.GradientDrawable();
+        g.setColor(bgColor);
+        g.setCornerRadius(dp(12));
+        b.setBackground(g);
+        b.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return b;
     }
 
     private int tileColor(String type) {
