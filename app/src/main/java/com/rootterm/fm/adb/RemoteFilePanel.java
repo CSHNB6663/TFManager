@@ -1080,14 +1080,19 @@ public class RemoteFilePanel extends LinearLayout {
                 sb.append(" ").append(d.getProductName());
             }
             sb.append('\n');
-            for (int i = 0; i < d.getInterfaceCount(); i++) {
-                android.hardware.usb.UsbInterface itf = d.getInterface(i);
-                sb.append(String.format(Locale.US, "    itf%d class=0x%02X sub=0x%02X proto=0x%02X",
-                        i, itf.getInterfaceClass(), itf.getInterfaceSubclass(),
-                        itf.getInterfaceProtocol()));
-                sb.append(itf.getInterfaceClass() == 0xFF
-                        && itf.getInterfaceSubclass() == 0x42
-                        && itf.getInterfaceProtocol() == 0x01 ? "  ← ADB\n" : "\n");
+            for (int ci = 0; ci < d.getConfigurationCount(); ci++) {
+                android.hardware.usb.UsbConfiguration cfg = d.getConfiguration(ci);
+                sb.append("  配置").append(ci).append(":\n");
+                for (int i = 0; i < cfg.getInterfaceCount(); i++) {
+                    android.hardware.usb.UsbInterface itf = cfg.getInterface(i);
+                    sb.append(String.format(Locale.US,
+                            "    itf%d class=0x%02X sub=0x%02X proto=0x%02X",
+                            i, itf.getInterfaceClass(), itf.getInterfaceSubclass(),
+                            itf.getInterfaceProtocol()));
+                    sb.append(itf.getInterfaceClass() == 0xFF
+                            && itf.getInterfaceSubclass() == 0x42
+                            && itf.getInterfaceProtocol() == 0x01 ? "  ← ADB\n" : "\n");
+                }
             }
         }
         return sb.toString();

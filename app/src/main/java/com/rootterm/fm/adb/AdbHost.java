@@ -82,15 +82,46 @@ public final class AdbHost {
         if (d == null) {
             return false;
         }
+        // 注意：UsbDevice 只解析「第一个 configuration」的接口，
+        // ADB 接口可能在其它 configuration 里，必须逐个 configuration 检查。
+        for (int ci = 0; ci < d.getConfigurationCount(); ci++) {
+            android.hardware.usb.UsbConfiguration cfg = d.getConfiguration(ci);
+            for (int i = 0; i < cfg.getInterfaceCount(); i++) {
+                if (isAdbInterface(cfg.getInterface(i))) {
+                    return true;
+                }
+            }
+        }
+        // 兜底：device 级接口列表
         for (int i = 0; i < d.getInterfaceCount(); i++) {
-            UsbInterface itf = d.getInterface(i);
-            if (itf.getInterfaceClass() == ADB_CLASS
-                    && itf.getInterfaceSubclass() == ADB_SUBCLASS
-                    && itf.getInterfaceProtocol() == ADB_PROTOCOL) {
+            if (isAdbInterface(d.getInterface(i))) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static boolean isAdbInterface(UsbInterface itf) {
+        return itf != null
+                && itf.getInterfaceClass() == ADB_CLASS
+                && itf.getInterfaceSubclass() == ADB_SUBCLASS
+                && itf.getInterfaceProtocol() == ADB_PROTOCOL;
+    }
+
+    /** 找出 ADB 接口所在 configuration 下标（-1 表示没有）。 */
+    public static int findAdbConfigIndex(UsbDevice d) {
+        if (d == null) {
+            return -1;
+        }
+        for (int ci = 0; ci < d.getConfigurationCount(); ci++) {
+            android.hardware.usb.UsbConfiguration cfg = d.getConfiguration(ci);
+            for (int i = 0; i < cfg.getInterfaceCount(); i++) {
+                if (isAdbInterface(cfg.getInterface(i))) {
+                    return ci;
+                }
+            }
+        }
+        return -1;
     }
 
     public static List<UsbDevice> findDevices(UsbManager m) {
@@ -124,40 +155,78 @@ public final class AdbHost {
         UsbInterface target = null;
         UsbEndpoint epIn = null;
         UsbEndpoint epOut = null;
-        for (int i = 0; i < d.getInterfaceCount(); i++) {
-            UsbInterface itf = d.getInterface(i);
-            if (itf.getInterfaceClass() != ADB_CLASS
-                    || itf.getInterfaceSubclass() != ADB_SUBCLASS
-                    || itf.getInterfaceProtocol() != ADB_PROTOCOL) {
-                continue;
-            }
-            UsbEndpoint in = null;
-            UsbEndpoint out = null;
-            for (int e = 0; e < itf.getEndpointCount(); e++) {
-                UsbEndpoint ep = itf.getEndpoint(e);
-                if (ep.getType() != UsbConstants.USB_ENDPOINT_XFER_BULK) {
+        int cfgIndex = -1;
+
+        // 先遍历所有 configuration（ADB 可能在非首个配置里）
+        for (int ci = 0; ci < d.getConfigurationCount() && target == null; ci++) {
+            android.hardware.usb.UsbConfiguration cfg = d.getConfiguration(ci);
+            for (int i = 0; i < cfg.getInterfaceCount(); i++) {
+                UsbInterface itf = cfg.getInterface(i);
+                if (!isAdbInterface(itf)) {
                     continue;
                 }
-                if (ep.getDirection() == UsbConstants.USB_DIR_IN) {
-                    in = ep;
-                } else {
-                    out = ep;
+                UsbEndpoint in = null;
+                UsbEndpoint out = null;
+                for (int e = 0; e < itf.getEndpointCount(); e++) {
+                    UsbEndpoint ep = itf.getEndpoint(e);
+                    if (ep.getType() != UsbConstants.USB_ENDPOINT_XFER_BULK) {
+                        continue;
+                    }
+                    if (ep.getDirection() == UsbConstants.USB_DIR_IN) {
+                        in = ep;
+                    } else {
+                        out = ep;
+                    }
+                }
+                if (in != null && out != null) {
+                    target = itf;
+                    epIn = in;
+                    epOut = out;
+                    cfgIndex = ci;
+                    break;
                 }
             }
-            if (in != null && out != null) {
-                target = itf;
-                epIn = in;
-                epOut = out;
-                break;
+        }
+        // 兜底：device 级接口列表
+        if (target == null) {
+            for (int i = 0; i < d.getInterfaceCount(); i++) {
+                UsbInterface itf = d.getInterface(i);
+                if (!isAdbInterface(itf)) {
+                    continue;
+                }
+                UsbEndpoint in = null;
+                UsbEndpoint out = null;
+                for (int e = 0; e < itf.getEndpointCount(); e++) {
+                    UsbEndpoint ep = itf.getEndpoint(e);
+                    if (ep.getType() != UsbConstants.USB_ENDPOINT_XFER_BULK) {
+                        continue;
+                    }
+                    if (ep.getDirection() == UsbConstants.USB_DIR_IN) {
+                        in = ep;
+                    } else {
+                        out = ep;
+                    }
+                }
+                if (in != null && out != null) {
+                    target = itf;
+                    epIn = in;
+                    epOut = out;
+                    break;
+                }
             }
         }
         if (target == null) {
             StringBuilder sb = new StringBuilder("未找到 ADB 接口（需要 class=FF/sub=42/proto=01）。实际接口：");
-            for (int i = 0; i < d.getInterfaceCount(); i++) {
-                UsbInterface itf = d.getInterface(i);
-                sb.append(String.format(Locale.US, "\n  itf%d class=0x%02X sub=0x%02X proto=0x%02X",
-                        i, itf.getInterfaceClass(), itf.getInterfaceSubclass(),
-                        itf.getInterfaceProtocol()));
+            for (int ci = 0; ci < d.getConfigurationCount(); ci++) {
+                android.hardware.usb.UsbConfiguration cfg = d.getConfiguration(ci);
+                sb.append("\n配置").append(ci).append(':');
+                for (int i = 0; i < cfg.getInterfaceCount(); i++) {
+                    UsbInterface itf = cfg.getInterface(i);
+                    sb.append(String.format(Locale.US,
+                            "\n  itf%d class=0x%02X sub=0x%02X proto=0x%02X",
+                            i, itf.getInterfaceClass(), itf.getInterfaceSubclass(),
+                            itf.getInterfaceProtocol()));
+                }
             }
             sb.append("\n请确认对方已开「USB 调试」，并把 USB 用途改成「传输文件(MTP)」。");
             throw new IOException(sb.toString());
@@ -166,6 +235,14 @@ public final class AdbHost {
         if (conn == null) {
             throw new IOException("无法打开 USB 设备");
         }
+        // 若 ADB 接口不在首个配置，先切到对应 configuration
+        if (cfgIndex > 0) {
+            try {
+                conn.setConfiguration(d.getConfiguration(cfgIndex));
+            } catch (Throwable ignored) {
+            }
+        }
+
         // claim 接口；部分设备需要先 SET_CONFIGURATION
         boolean claimed = false;
         try {
