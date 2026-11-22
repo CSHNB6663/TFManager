@@ -58,7 +58,7 @@ public class PartitionPanel extends LinearLayout {
         super(c);
         ctx = c;
         setOrientation(VERTICAL);
-        setBackground(ThemeColors.pageBackground());
+        setBackgroundColor(0x00000000);
         build();
     }
 
@@ -66,7 +66,7 @@ public class PartitionPanel extends LinearLayout {
 
     private void build() {
         ScrollView sv = new ScrollView(ctx);
-        sv.setBackground(ThemeColors.pageBackground());
+        sv.setBackgroundColor(0x00000000);
 
         LinearLayout page = new LinearLayout(ctx);
         page.setOrientation(VERTICAL);

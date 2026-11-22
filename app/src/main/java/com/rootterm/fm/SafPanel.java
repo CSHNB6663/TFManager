@@ -58,7 +58,7 @@ public class SafPanel extends LinearLayout {
         setOrientation(VERTICAL);
         setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        setBackground(ThemeColors.pageBackground());
+        setBackgroundColor(0x00000000);
 
         addView(buildHeader(), new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(46)));
@@ -69,7 +69,7 @@ public class SafPanel extends LinearLayout {
         tool.setOrientation(HORIZONTAL);
         tool.setGravity(Gravity.CENTER_VERTICAL);
         tool.setPadding(dp(14), dp(8), dp(14), dp(6));
-        tool.setBackground(ThemeColors.pageBackground());
+        tool.setBackgroundColor(0x00000000);
 
         TextView pick = chip("选择目录…");
         pick.setOnClickListener(new OnClickListener() {

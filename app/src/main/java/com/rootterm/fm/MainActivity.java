@@ -278,7 +278,7 @@ public class MainActivity extends Activity {
     private View buildRoot() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackground(ThemeColors.pageBackground());
+        root.setBackground(ThemeColors.pageBackground());  // 唯一的渐变层
 
         mPages = new SwipeBox(this, new SwipeBox.Callback() {
             @Override
@@ -293,7 +293,7 @@ public class MainActivity extends Activity {
                 }
             }
         });
-        mPages.setBackground(ThemeColors.pageBackground());
+        mPages.setBackgroundColor(0x00000000);
         root.addView(mPages, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
@@ -302,7 +302,7 @@ public class MainActivity extends Activity {
 
         // 分区页
         mPartCard = new FrameLayout(this);
-        mPartCard.setBackground(ThemeColors.pageBackground());
+        mPartCard.setBackgroundColor(0x00000000);
         mPartCard.setVisibility(View.GONE);
         mPartPanel = new PartitionPanel(this);
         mPartCard.addView(mPartPanel, new FrameLayout.LayoutParams(
@@ -322,7 +322,7 @@ public class MainActivity extends Activity {
 
         // 免 root 目录（SAF）
         mSafCard = new FrameLayout(this);
-        mSafCard.setBackground(ThemeColors.pageBackground());
+        mSafCard.setBackgroundColor(0x00000000);
         mSafCard.setVisibility(View.GONE);
         mSaf = new SafPanel(this);
         mSaf.setOnBack(new Runnable() {
@@ -540,12 +540,12 @@ public class MainActivity extends Activity {
 
     private LinearLayout buildHomePage() {
         ScrollView sv = new ScrollView(this);
-        sv.setBackground(ThemeColors.pageBackground());
+        sv.setBackgroundColor(0x00000000);
         sv.setFillViewport(true);
 
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setBackground(ThemeColors.pageBackground());
+        page.setBackgroundColor(0x00000000);
         page.setPadding(dp(20), dp(18), dp(20), dp(18));
 
         // 头像 + 应用名
@@ -777,7 +777,7 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
-        wrap.setBackground(ThemeColors.pageBackground());
+        wrap.setBackgroundColor(0x00000000);
         wrap.addView(sv, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         return wrap;
@@ -1326,10 +1326,10 @@ public class MainActivity extends Activity {
 
     private LinearLayout buildSettingsPage() {
         ScrollView sv = new ScrollView(this);
-        sv.setBackground(ThemeColors.pageBackground());
+        sv.setBackgroundColor(0x00000000);
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setBackground(ThemeColors.pageBackground());
+        page.setBackgroundColor(0x00000000);
         page.setPadding(dp(20), dp(22), dp(20), dp(18));
 
         TextView title = UiConfig.text(this, "设置", MiuixTheme.TEXT_TITLE, C_TEXT);
@@ -1427,7 +1427,7 @@ public class MainActivity extends Activity {
 
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
-        wrap.setBackground(ThemeColors.pageBackground());
+        wrap.setBackgroundColor(0x00000000);
         wrap.addView(sv, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         return wrap;
