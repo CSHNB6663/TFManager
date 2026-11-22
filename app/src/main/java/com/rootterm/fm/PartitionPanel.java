@@ -46,6 +46,11 @@ public class PartitionPanel extends LinearLayout {
     private final List<Part> parts = new ArrayList<Part>();
     private TextView mHint;
     private LinearLayout mListHost;
+    private LinearLayout mLocalBox;
+    private com.rootterm.fm.fastboot.FastbootPanel mFastboot;
+    private TextView mTabLocal;
+    private TextView mTabFastboot;
+    private boolean mFastbootMode = true;
     private boolean loading;
 
     public PartitionPanel(Context c) {
@@ -94,15 +99,56 @@ public class PartitionPanel extends LinearLayout {
         head.addView(refresh);
         page.addView(head);
 
+        // 模式切换：数据线（Fastboot）/ 本机（root）
+        page.addView(gap(12));
+        LinearLayout modeBar = new LinearLayout(ctx);
+        modeBar.setOrientation(HORIZONTAL);
+        mTabFastboot = modeButton("数据线刷写", true);
+        mTabLocal = modeButton("本机分区", false);
+        LinearLayout.LayoutParams mb1 = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        mb1.rightMargin = dp(4);
+        modeBar.addView(mTabFastboot, mb1);
+        LinearLayout.LayoutParams mb2 = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        mb2.leftMargin = dp(4);
+        modeBar.addView(mTabLocal, mb2);
+        page.addView(modeBar);
+
+        mTabFastboot.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                setMode(true);
+            }
+        });
+        mTabLocal.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                setMode(false);
+            }
+        });
+
+        // ---------- 数据线（Fastboot） ----------
+        mFastboot = new com.rootterm.fm.fastboot.FastbootPanel(ctx);
+        LinearLayout.LayoutParams fbp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        fbp.topMargin = dp(14);
+        page.addView(mFastboot, fbp);
+
+        // ---------- 本机（root dd） ----------
+        mLocalBox = new LinearLayout(ctx);
+        mLocalBox.setOrientation(VERTICAL);
+        page.addView(mLocalBox);
+
         mHint = new TextView(ctx);
         mHint.setText("正在读取分区…");
         mHint.setTextSize(11.5f);
         mHint.setTextColor(MiuixTheme.onSurfaceVariant());
         mHint.setPadding(0, dp(6), 0, 0);
-        page.addView(mHint);
+        mLocalBox.addView(mHint);
 
         // 说明卡
-        page.addView(gap(14));
+        mLocalBox.addView(gap(14));
         MiuixGlass tip = new MiuixGlass(ctx);
         tip.radiusDp(MiuixTheme.RADIUS_MEDIUM);
         tip.tint(0xE8F2F7FF, 0xD9E6EFFF);
@@ -116,20 +162,89 @@ public class PartitionPanel extends LinearLayout {
         tipText.setLineSpacing(dp(2), 1f);
         tip.addView(tipText, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        page.addView(tip);
+        mLocalBox.addView(tip);
 
         // 列表
-        page.addView(gap(14));
+        mLocalBox.addView(gap(14));
         mListHost = new LinearLayout(ctx);
         mListHost.setOrientation(VERTICAL);
-        page.addView(mListHost);
+        mLocalBox.addView(mListHost);
 
         sv.addView(page, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         addView(sv, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        loadPartitions(false);
+        setMode(true);
+    }
+
+    /** 模式按钮。 */
+    private TextView modeButton(String text, boolean active) {
+        TextView b = new TextView(ctx);
+        b.setText(text);
+        b.setTextSize(12.5f);
+        b.setGravity(Gravity.CENTER);
+        b.setPadding(dp(12), dp(9), dp(12), dp(9));
+        b.setClickable(true);
+        android.graphics.drawable.GradientDrawable g =
+                new android.graphics.drawable.GradientDrawable();
+        g.setColor(active ? MiuixTheme.primary() : 0x14000000);
+        g.setCornerRadius(dp(14));
+        b.setBackground(g);
+        b.setTextColor(active ? MiuixTheme.onPrimary() : MiuixTheme.onSurface());
+        b.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        return b;
+    }
+
+    /** 切换模式。 */
+    private void setMode(boolean fastboot) {
+        mFastbootMode = fastboot;
+        if (mFastboot != null) {
+            mFastboot.setVisibility(fastboot ? VISIBLE : GONE);
+        }
+        if (mLocalBox != null) {
+            mLocalBox.setVisibility(fastboot ? GONE : VISIBLE);
+        }
+        styleModeButton(mTabFastboot, fastboot);
+        styleModeButton(mTabLocal, !fastboot);
+        if (fastboot) {
+            if (mFastboot != null) {
+                mFastboot.scan();
+            }
+        } else {
+            loadPartitions(false);
+        }
+    }
+
+    private void styleModeButton(TextView b, boolean active) {
+        if (b == null) {
+            return;
+        }
+        android.graphics.drawable.GradientDrawable g =
+                new android.graphics.drawable.GradientDrawable();
+        g.setColor(active ? MiuixTheme.primary() : 0x14000000);
+        g.setCornerRadius(dp(14));
+        b.setBackground(g);
+        b.setTextColor(active ? MiuixTheme.onPrimary() : MiuixTheme.onSurface());
+    }
+
+    /** USB 权限结果（由 MainActivity 转发）。 */
+    public void onUsbPermission(boolean granted) {
+        if (mFastboot != null) {
+            mFastboot.onPermissionResult(granted);
+        }
+    }
+
+    /** 释放资源。 */
+    public void release() {
+        if (mFastboot != null) {
+            mFastboot.release();
+        }
+    }
+
+    /** 当前是否数据线模式。 */
+    public boolean isFastbootMode() {
+        return mFastbootMode;
     }
 
     private View gap(int v) {

@@ -82,6 +82,7 @@ public class MainActivity extends Activity {
 
     private MiuixNavBar mMiuixNav;
     private PartitionPanel mPartPanel;
+    private android.content.BroadcastReceiver mUsbReceiver;
     private FrameLayout mPartCard;
 
     private LinearLayout mTermCard;
@@ -151,6 +152,7 @@ public class MainActivity extends Activity {
                 refreshNavBackdrop();
             }
         }, 700);
+        registerUsbReceiver();
     }
 
     // ------------------------------------------------------------ 窗口
@@ -321,6 +323,46 @@ public class MainActivity extends Activity {
 
         installInsets(root);
         return root;
+    }
+
+    /** 注册 USB 权限结果广播。 */
+    private void registerUsbReceiver() {
+        mUsbReceiver = new android.content.BroadcastReceiver() {
+            @Override
+            public void onReceive(android.content.Context c, Intent intent) {
+                if (intent == null || !com.rootterm.fm.fastboot.FastbootHost.ACTION_PERM
+                        .equals(intent.getAction())) {
+                    return;
+                }
+                boolean granted = intent.getBooleanExtra(
+                        android.hardware.usb.UsbManager.EXTRA_PERMISSION_GRANTED, false);
+                if (mPartPanel != null) {
+                    mPartPanel.onUsbPermission(granted);
+                }
+            }
+        };
+        android.content.IntentFilter f = new android.content.IntentFilter(
+                com.rootterm.fm.fastboot.FastbootHost.ACTION_PERM);
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(mUsbReceiver, f, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(mUsbReceiver, f);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        try {
+            if (mUsbReceiver != null) {
+                unregisterReceiver(mUsbReceiver);
+                mUsbReceiver = null;
+            }
+        } catch (Throwable ignored) {
+        }
+        if (mPartPanel != null) {
+            mPartPanel.release();
+        }
     }
 
     // ------------------------------------------------------------ 底部导航（miuix-nav 玻璃胶囊）
