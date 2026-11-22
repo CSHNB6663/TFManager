@@ -5,14 +5,11 @@ import android.os.Build;
 import android.util.TypedValue;
 
 /**
- * 主题色解析：采用 KernelSU-Style-UI-Kit 的「Miuix + Monet 动态取色」思路。
+ * 主题色：固定玻璃配色（已移除 Monet 动态取色）。
  *
- * <p>Android 12（API 31）及以上读取系统的 Monet 调色板
- * （{@code android:color/system_accent1_*}、{@code system_neutral1_*}、{@code system_neutral2_*}），
- * 跟随壁纸/系统主题取色；更低版本回落到 MIUIX 默认蓝 {@code #3482FF}。</p>
- *
- * <p>本 App 是纯 framework Java（不含 Compose/AAR），无法直接引入该 UI Kit 的组件代码，
- * 因此把它的设计令牌（动态主色、容器色、表面色、圆角）映射成了下面这些值。</p>
+ * <p>不再读取系统 {@code system_accent1_*}，避免换壁纸后界面配色跳变；
+ * 统一使用固定的玻璃蓝调，配合 {@link #pageBackground()} 的浅色渐变，
+ * 让半透明玻璃卡片有可读的层次。</p>
  */
 public final class ThemeColors {
 
@@ -26,55 +23,35 @@ public final class ThemeColors {
     public static int ON_ACCENT_CONTAINER = 0xFF0B4A9E;
     /** 页面底色。 */
     public static int SURFACE = 0xFFF7F8FA;
-    /** 卡片底色。 */
-    public static int CARD = 0xFFFFFFFF;
+    /** 卡片底色（半透明白，叠在渐变页面上呈玻璃感）。 */
+    public static int CARD = 0xF2FFFFFF;
+    /** 页面渐变顶部色。 */
+    public static int BG_TOP = 0xFFF1F5FC;
+    /** 页面渐变底部色。 */
+    public static int BG_BOTTOM = 0xFFE6EDF9;
 
     private ThemeColors() {
     }
 
-    /** 在 Activity 创建时调用一次；上下文用于读取系统 Monet 资源。 */
+    /** 在 Activity 创建时调用一次（固定配色，不再读系统 Monet）。 */
     public static void init(Context ctx) {
-        int accent = 0;
-        int container = 0;
-        int surface = 0;
-        if (Build.VERSION.SDK_INT >= 31) {
-            accent = resolve(ctx, "system_accent1_600", 0);
-            container = resolve(ctx, "system_accent1_100", 0);
-            surface = resolve(ctx, "system_neutral1_50", 0);
-        }
-        if (accent == 0) {
-            accent = 0xFF3482FF;
-        }
-        if (container == 0) {
-            container = 0xFFE8F0FF;
-        }
-        if (surface == 0) {
-            surface = 0xFFF7F8FA;
-        }
-        ACCENT = accent;
-        ACCENT_CONTAINER = blend(container, 0xFFFFFFFF, 0.35f);
-        SURFACE = surface;
-        CARD = 0xFFFFFFFF;
-        ON_ACCENT = luminance(ACCENT) > 0.6 ? 0xFF191919 : 0xFFFFFFFF;
-        ON_ACCENT_CONTAINER = luminance(ACCENT) > 0.6 ? 0xFF3A2A00 : 0xFF0B4A9E;
+        ACCENT = 0xFF3482FF;
+        ACCENT_CONTAINER = 0xFFE8F0FF;
+        ON_ACCENT = 0xFFFFFFFF;
+        ON_ACCENT_CONTAINER = 0xFF0B4A9E;
+        SURFACE = 0xFFF1F5FC;
+        CARD = 0xF2FFFFFF;
+        BG_TOP = 0xFFF1F5FC;
+        BG_BOTTOM = 0xFFE6EDF9;
     }
 
-    private static int resolve(Context ctx, String name, int fallback) {
-        try {
-            int id = ctx.getResources().getIdentifier(name, "color", "android");
-            if (id == 0) {
-                return fallback;
-            }
-            TypedValue tv = new TypedValue();
-            ctx.getResources().getValue(id, tv, true);
-            if (tv.type >= TypedValue.TYPE_FIRST_COLOR_INT
-                    && tv.type <= TypedValue.TYPE_LAST_COLOR_INT) {
-                return tv.data;
-            }
-            return ctx.getResources().getColor(id, null);
-        } catch (Throwable t) {
-            return fallback;
-        }
+    /** 页面背景：竖向浅色渐变，让玻璃卡片有层次。 */
+    public static android.graphics.drawable.GradientDrawable pageBackground() {
+        android.graphics.drawable.GradientDrawable g =
+                new android.graphics.drawable.GradientDrawable(
+                        android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                        new int[]{BG_TOP, BG_BOTTOM});
+        return g;
     }
 
     /** 颜色混合：ratio 为 0 时取 a，为 1 时取 b。 */

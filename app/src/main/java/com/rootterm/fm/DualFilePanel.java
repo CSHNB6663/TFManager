@@ -85,7 +85,7 @@ public class DualFilePanel extends LinearLayout implements FileBrowserPanel.Host
         LinearLayout bottom = new LinearLayout(ctx);
         bottom.setOrientation(HORIZONTAL);
         bottom.setGravity(Gravity.CENTER_VERTICAL);
-        bottom.setBackgroundColor(F_BG);
+        bottom.setBackgroundColor(0x00000000);
         bottom.setLayoutParams(new LinearLayout.LayoutParams(MATCH, dp(50)));
         bottom.setPadding(dp(4), 0, dp(4), 0);
         bottom.addView(backBtn);

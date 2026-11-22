@@ -60,6 +60,7 @@ public class FileBrowserPanel extends LinearLayout {
     // ------------------------------------------------------------ MIUIX（HyperOS）配色
 
     private static final int F_BG = 0xFFFFFFFF;        // 列表/卡片底
+    private static final int F_GLASS = 0xF2FFFFFF;     // 玻璃卡片底
     private static final int F_PAGE = 0xFFF7F8FA;      // 页面底色（MIUIX 灰）
     private static final int F_TEXT = 0xFF191919;      // 主文字
     private static final int F_DIM = 0xFF8A8F98;       // 次要文字
@@ -254,6 +255,8 @@ public class FileBrowserPanel extends LinearLayout {
     private int loadSeq = 0;
     /** 下次 apply 时是否播放入场动画（只在切目录时播）。 */
     private boolean pendingAnimateIn;
+    /** 行入场动画（列表刷新后短暂开启，避免滚动时反复播）。 */
+    private volatile boolean animateRows;
 
     private TextView pathText;
     private TextView statsText;
@@ -390,7 +393,7 @@ public class FileBrowserPanel extends LinearLayout {
         FrameLayout wrap = new FrameLayout(ctx);
 
         list = new ListView(ctx);
-        list.setBackgroundColor(F_BG);
+        list.setBackgroundColor(0x00000000);
         list.setDivider(null);
         list.setDividerHeight(0);
         list.setCacheColorHint(0);
@@ -405,7 +408,7 @@ public class FileBrowserPanel extends LinearLayout {
         emptyView.setText("加载中…");
         emptyView.setTextColor(F_DIM);
         emptyView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f);
-        emptyView.setBackgroundColor(F_BG);
+        emptyView.setBackgroundColor(0x00000000);
         emptyView.setPadding(dpI(24), dpI(24), dpI(24), dpI(24));
 
         wrap.addView(list, new FrameLayout.LayoutParams(MATCH, MATCH));
@@ -962,7 +965,7 @@ public class FileBrowserPanel extends LinearLayout {
 
         MiuixCard card = new MiuixCard(ctx);
         card.radiusDp(14);
-        card.fill(F_BG);
+        card.fill(F_GLASS);
         wrap.addView(card, new LinearLayout.LayoutParams(MATCH, WRAP));
 
         LinearLayout row = new LinearLayout(ctx);
@@ -1106,6 +1109,21 @@ public class FileBrowserPanel extends LinearLayout {
             h.icon.setType(p.iconTypeFor(e));
             h.name.setText(e.displayName());
             h.meta.setText(p.metaText(e));
+
+            // 行入场：淡入 + 轻微上浮，按位置错峰（只在新内容出现时播）
+            if (p.animateRows) {
+                convertView.setAlpha(0f);
+                convertView.setTranslationY(p.dpI(10));
+                convertView.animate()
+                        .alpha(1f)
+                        .translationY(0f)
+                        .setStartDelay(Math.min(position, 8) * 28L)
+                        .setDuration(180)
+                        .start();
+            } else {
+                convertView.setAlpha(1f);
+                convertView.setTranslationY(0f);
+            }
             return convertView;
         }
     }
@@ -2426,6 +2444,22 @@ public class FileBrowserPanel extends LinearLayout {
     }
 
     // ------------------------------------------------------------ 工具
+
+    /** 延迟在主线程执行。 */
+    private void postUi(final Runnable r, long delayMs) {
+        if (r == null) {
+            return;
+        }
+        MAIN.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    r.run();
+                } catch (Throwable ignored) {
+                }
+            }
+        }, delayMs);
+    }
 
     private void postUi(final Runnable r) {
         if (r == null) {

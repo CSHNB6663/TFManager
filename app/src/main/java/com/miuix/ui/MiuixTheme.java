@@ -17,12 +17,17 @@ public final class MiuixTheme {
 
     /** 页面背景。 */
     public static int background() {
-        return ThemeColors.SURFACE;
+        return ThemeColors.BG_TOP;
     }
 
     /** 卡片表面。 */
     public static int surface() {
         return ThemeColors.CARD;
+    }
+
+    /** 页面渐变背景。 */
+    public static android.graphics.drawable.GradientDrawable pageBackground() {
+        return ThemeColors.pageBackground();
     }
 
     /** 次级表面（分组内嵌）。 */

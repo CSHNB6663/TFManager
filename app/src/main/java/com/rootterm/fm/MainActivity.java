@@ -121,7 +121,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Miuix + Monet 动态取色（Android 12+ 跟随系统/壁纸）
+        // 固定玻璃配色（已移除 Monet 动态取色）
         ThemeColors.init(this);
         C_BG = ThemeColors.SURFACE;
         C_ACCENT = ThemeColors.ACCENT;
@@ -278,7 +278,7 @@ public class MainActivity extends Activity {
     private View buildRoot() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(C_BG);
+        root.setBackground(ThemeColors.pageBackground());
 
         mPages = new SwipeBox(this, new SwipeBox.Callback() {
             @Override
@@ -293,7 +293,7 @@ public class MainActivity extends Activity {
                 }
             }
         });
-        mPages.setBackgroundColor(C_BG);
+        mPages.setBackground(ThemeColors.pageBackground());
         root.addView(mPages, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
@@ -302,7 +302,7 @@ public class MainActivity extends Activity {
 
         // 分区页
         mPartCard = new FrameLayout(this);
-        mPartCard.setBackgroundColor(C_BG);
+        mPartCard.setBackground(ThemeColors.pageBackground());
         mPartCard.setVisibility(View.GONE);
         mPartPanel = new PartitionPanel(this);
         mPartCard.addView(mPartPanel, new FrameLayout.LayoutParams(
@@ -322,7 +322,7 @@ public class MainActivity extends Activity {
 
         // 免 root 目录（SAF）
         mSafCard = new FrameLayout(this);
-        mSafCard.setBackgroundColor(C_BG);
+        mSafCard.setBackground(ThemeColors.pageBackground());
         mSafCard.setVisibility(View.GONE);
         mSaf = new SafPanel(this);
         mSaf.setOnBack(new Runnable() {
@@ -540,12 +540,12 @@ public class MainActivity extends Activity {
 
     private LinearLayout buildHomePage() {
         ScrollView sv = new ScrollView(this);
-        sv.setBackgroundColor(C_BG);
+        sv.setBackground(ThemeColors.pageBackground());
         sv.setFillViewport(true);
 
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setBackgroundColor(C_BG);
+        page.setBackground(ThemeColors.pageBackground());
         page.setPadding(dp(20), dp(18), dp(20), dp(18));
 
         // 头像 + 应用名
@@ -777,7 +777,7 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
-        wrap.setBackgroundColor(C_BG);
+        wrap.setBackground(ThemeColors.pageBackground());
         wrap.addView(sv, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         return wrap;
@@ -1326,10 +1326,10 @@ public class MainActivity extends Activity {
 
     private LinearLayout buildSettingsPage() {
         ScrollView sv = new ScrollView(this);
-        sv.setBackgroundColor(C_BG);
+        sv.setBackground(ThemeColors.pageBackground());
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setBackgroundColor(C_BG);
+        page.setBackground(ThemeColors.pageBackground());
         page.setPadding(dp(20), dp(22), dp(20), dp(18));
 
         TextView title = UiConfig.text(this, "设置", MiuixTheme.TEXT_TITLE, C_TEXT);
@@ -1341,7 +1341,7 @@ public class MainActivity extends Activity {
         MiuixPreference.Group look = MiuixPreference.group(this, "外观");
         look.infoRow("界面风格", "Miuix（玻璃）");
         look.infoRow("语言", "跟随系统");
-        look.infoRow("主题强调色", "Monet 自动取色");
+        look.infoRow("主题配色", "固定玻璃蓝");
         page.addView(look.build());
 
         // ---------------- 文件与权限 ----------------
@@ -1427,7 +1427,7 @@ public class MainActivity extends Activity {
 
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
-        wrap.setBackgroundColor(C_BG);
+        wrap.setBackground(ThemeColors.pageBackground());
         wrap.addView(sv, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         return wrap;

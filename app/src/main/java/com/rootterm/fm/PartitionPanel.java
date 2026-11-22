@@ -58,7 +58,7 @@ public class PartitionPanel extends LinearLayout {
         super(c);
         ctx = c;
         setOrientation(VERTICAL);
-        setBackgroundColor(MiuixTheme.background());
+        setBackground(ThemeColors.pageBackground());
         build();
     }
 
@@ -66,7 +66,7 @@ public class PartitionPanel extends LinearLayout {
 
     private void build() {
         ScrollView sv = new ScrollView(ctx);
-        sv.setBackgroundColor(MiuixTheme.background());
+        sv.setBackground(ThemeColors.pageBackground());
 
         LinearLayout page = new LinearLayout(ctx);
         page.setOrientation(VERTICAL);
