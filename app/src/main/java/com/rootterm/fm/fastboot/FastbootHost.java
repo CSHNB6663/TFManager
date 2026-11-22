@@ -479,9 +479,33 @@ public final class FastbootHost {
             }
         }
 
-        /** 重启。 */
-        public void reboot(String target) throws IOException {
-            exec(target == null || target.isEmpty() ? "reboot" : "reboot-" + target);
+        /**
+         * 重启，带兜底命令与结果说明。
+         *
+         * @param target 空=重启到系统；"bootloader"=重启到 bootloader
+         * @return 可展示的结果文本
+         */
+        public String reboot(String target) {
+            String[] cmds = (target == null || target.isEmpty())
+                    ? new String[]{"reboot", "oem reboot"}
+                    : new String[]{"reboot-bootloader", "oem reboot-bootloader",
+                    "reboot bootloader"};
+            StringBuilder sb = new StringBuilder();
+            for (String c : cmds) {
+                try {
+                    Resp r = exec(c);
+                    if (r.okay) {
+                        return "已执行 " + c + "，设备正在重启";
+                    }
+                    sb.append(c).append(" → ").append(
+                            r.payload == null || r.payload.isEmpty() ? r.status : r.payload)
+                            .append('\n');
+                } catch (IOException e) {
+                    // 设备重启时通常不回应答，视为已下发
+                    return "已发送 " + c + "（无应答，设备可能正在重启）";
+                }
+            }
+            return "重启命令均被拒绝：\n" + sb;
         }
 
         /**

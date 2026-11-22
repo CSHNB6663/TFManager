@@ -987,26 +987,56 @@ public class FastbootPanel extends LinearLayout {
                 .positive("确认执行", new MiuixWindow.OnAction() {
                     @Override
                     public void onClick(android.app.Dialog d) {
-                        new Thread(new Runnable() {
-                            @Override
-                            public void run() {
-                                try {
-                                    session.reboot(target);
-                                } catch (Throwable ignored) {
-                                }
-                                post(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        closeSession();
-                                        scan();
-                                    }
-                                });
-                            }
-                        }, "fb-reboot").start();
+                        doReboot(target);
                     }
                 })
                 .negative("取消", null)
                 .show();
+    }
+
+    /** 执行重启并展示结果。 */
+    private void doReboot(final String target) {
+        final TextView status = new TextView(ctx);
+        status.setText("正在发送重启命令…");
+        status.setTextSize(12.5f);
+        status.setTextColor(MiuixTheme.onSurface());
+        status.setTextIsSelectable(true);
+        LinearLayout box = new LinearLayout(ctx);
+        box.setOrientation(VERTICAL);
+        box.addView(status);
+
+        MiuixWindow.builder(ctx)
+                .title(target.isEmpty() ? "重启到系统" : "重启到 bootloader")
+                .content(box)
+                .scrollable(false)
+                .positive("关闭", null)
+                .show();
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String m = null;
+                boolean ok = true;
+                try {
+                    m = session.reboot(target);
+                    ok = m != null && !m.startsWith("重启命令均被拒绝");
+                } catch (Throwable t) {
+                    m = "异常：" + t.getMessage();
+                    ok = false;
+                }
+                final String msg = m == null ? "无结果" : m;
+                final boolean fok = ok;
+                post(new Runnable() {
+                    @Override
+                    public void run() {
+                        status.setText(msg);
+                        status.setTextColor(fok ? MiuixTheme.success() : MiuixTheme.error());
+                        closeSession();
+                        mStatus.setText("已发送重启");
+                    }
+                });
+            }
+        }, "fb-reboot").start();
     }
 
     // ---------------------------------------------------------------- 工具

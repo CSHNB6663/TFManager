@@ -336,7 +336,10 @@ public class PartitionPanel extends LinearLayout {
                         + "    p=$(readlink -f $f 2>/dev/null); "
                         + "    [ -z \"$p\" ] && p=$f; "
                         + "    s=$(blockdev --getsize64 \"$p\" 2>/dev/null); "
-                        + "    [ -z \"$s\" ] && s=$(cat /sys/class/block/$(basename \"$p\")/size 2>/dev/null); "
+                        + "    if [ -z \"$s\" ]; then "
+                        + "      ss=$(cat /sys/class/block/$(basename \"$p\")/size 2>/dev/null); "
+                        + "      [ -n \"$ss\" ] && s=$((ss * 512)); "
+                        + "    fi; "
                         + "    [ -z \"$s\" ] && s=0; "
                         + "    echo \"$n|$s|$p\"; "
                         + "  done; "
@@ -359,11 +362,7 @@ public class PartitionPanel extends LinearLayout {
                         } catch (Throwable ignored) {
                             p.size = 0;
                         }
-                        // 兜底值来自 sysfs（512 字节扇区），小于 4KB 且非 0 时按扇区换算
-                        if (p.size > 0 && p.size < 4096 && c.length > 2
-                                && !c[1].isEmpty()) {
-                            p.size = p.size * 512L;
-                        }
+
                         p.path = c[2];
                         p.type = guessType(p.name);
                         list.add(p);
@@ -417,7 +416,7 @@ public class PartitionPanel extends LinearLayout {
             total += p.size;
         }
         mHint.setText("共 " + parts.size() + " 个分区 · 合计 " + human(total)
-                + " · 点按分区可提取 / 刷写");
+                + "\n（含 super 内动态分区，合计可能大于实际存储容量）");
 
         MiuixCard card = new MiuixCard(ctx);
         card.radiusDp(MiuixTheme.RADIUS_CARD);
