@@ -144,8 +144,10 @@ public class MainActivity extends Activity {
         UiConfig.ACCENT = ThemeColors.ACCENT;
         UiConfig.ON_ACCENT = ThemeColors.ON_ACCENT;
         setupWindow();
-        setContentView(buildRoot());
+        android.view.View rootView = buildRoot();
+        setContentView(rootView);
         selectTab(TAB_HOME);
+        maybePlaySplash(rootView);
         Shell.detectRootAsync(new Runnable() {
             @Override
             public void run() {
@@ -565,6 +567,41 @@ public class MainActivity extends Activity {
         mNavPill = mMiuixNav;
         wrap.addView(mMiuixNav);
         return wrap;
+    }
+
+    /**
+     * 首次启动播放激活动画；播完移除浮层并记账，之后不再播放。
+     * 卸载重装会清掉 SharedPreferences，所以新用户又能看到。
+     */
+    private void maybePlaySplash(android.view.View root) {
+        if (!(root instanceof android.widget.FrameLayout)) {
+            return;
+        }
+        if (!SplashView.shouldPlay(this)) {
+            return;
+        }
+        final android.widget.FrameLayout host = (android.widget.FrameLayout) root;
+        final SplashView splash = new SplashView(this);
+        splash.setOnFinish(new SplashView.OnFinish() {
+            @Override
+            public void onFinish() {
+                try {
+                    host.removeView(splash);
+                } catch (Throwable ignored) {
+                }
+                SplashView.markPlayed(MainActivity.this);
+                AppLog.log("APP", "splash 播放完成");
+            }
+        });
+        host.addView(splash, new android.widget.FrameLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+        splash.post(new Runnable() {
+            @Override
+            public void run() {
+                splash.start();
+            }
+        });
     }
 
     private int resId(String name) {
