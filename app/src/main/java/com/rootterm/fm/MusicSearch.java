@@ -679,6 +679,82 @@ public final class MusicSearch {
         }
     }
 
+    // ================================================================ 我的歌单
+
+    /** 账号里的歌单条目。 */
+    public static final class PlaylistInfo {
+        public String id = "";
+        public String name = "";
+        public int trackCount;
+        public boolean special;   // 我喜欢的音乐
+    }
+
+    /** 我的歌单结果。 */
+    public static final class MyPlaylists {
+        public boolean ok;
+        public String error = "";
+        public String nickname = "";
+        public final List<PlaylistInfo> items = new ArrayList<PlaylistInfo>();
+    }
+
+    /** 拉取当前登录账号的歌单（需 cookie）。 */
+    public static MyPlaylists myPlaylists(String cookie) {
+        MyPlaylists r = new MyPlaylists();
+        if (cookie == null || cookie.trim().isEmpty()) {
+            r.error = "请先登录网易云（点「登录」扫码）";
+            return r;
+        }
+        try {
+            String acc = httpGet("https://music.163.com/api/nuser/account/get",
+                    "https://music.163.com/", cookie);
+            int pi = acc.indexOf("\"profile\"");
+            String uid = "";
+            if (pi >= 0) {
+                int a = acc.indexOf('{', pi);
+                int b = matchBrace(acc, a);
+                if (a > 0 && b > a) {
+                    String prof = acc.substring(a, b + 1);
+                    uid = topNum(prof, "userId");
+                    r.nickname = topStr(prof, "nickname");
+                }
+            }
+            if (uid.isEmpty()) {
+                r.error = "未登录或登录已失效，请重新登录";
+                return r;
+            }
+            String body = httpGet("https://music.163.com/api/user/playlist?uid=" + uid
+                    + "&limit=1000&offset=0", "https://music.163.com/", cookie);
+            int i = body.indexOf("\"playlist\"");
+            if (i < 0) {
+                r.error = "接口未返回歌单列表";
+                return r;
+            }
+            int a = body.indexOf('[', i);
+            int b = matchBracket(body, a);
+            if (a < 0 || b < 0) {
+                r.error = "解析失败";
+                return r;
+            }
+            for (String o : splitObjects(body, a + 1, b)) {
+                PlaylistInfo info = new PlaylistInfo();
+                info.id = topNum(o, "id");
+                info.name = topStr(o, "name");
+                info.trackCount = (int) parseLong(topNum(o, "trackCount"));
+                String sp = topNum(o, "specialType");
+                info.special = "5".equals(sp);
+                if (!info.id.isEmpty() && !info.name.isEmpty()) {
+                    r.items.add(info);
+                }
+            }
+            r.ok = true;
+            AppLog.log("MUSIC", "my playlists uid=" + uid + " → " + r.items.size());
+            return r;
+        } catch (Throwable t) {
+            r.error = t.getClass().getSimpleName() + ": " + t.getMessage();
+            return r;
+        }
+    }
+
     /** 花括号配对。 */
     private static int matchBrace(String s, int start) {
         if (start < 0 || start >= s.length() || s.charAt(start) != '{') {

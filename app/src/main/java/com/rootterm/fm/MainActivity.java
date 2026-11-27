@@ -2994,7 +2994,119 @@ public class MainActivity extends Activity {
                         loadPlaylist(v);
                     }
                 })
+                .neutral("我的歌单", new MiuixWindow.OnAction() {
+                    @Override
+                    public void onClick(android.app.Dialog d) {
+                        loadMyPlaylists();
+                    }
+                })
                 .negative("取消", null)
+                .show();
+    }
+
+    /** 加载当前账号的歌单列表（我喜欢的音乐等）。 */
+    private void loadMyPlaylists() {
+        if (musicCookie(MusicSearch.SRC_NETEASE).isEmpty()) {
+            toast("请先登录网易云（点「登录」扫码）");
+            openMusicLogin();
+            return;
+        }
+        final TextView st = UiConfig.text(this, "获取我的歌单…", 12f,
+                MiuixTheme.onSurfaceVariant());
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.addView(st);
+        final android.app.Dialog dlg = MiuixWindow.builder(this)
+                .title("我的歌单")
+                .content(box)
+                .scrollable(false)
+                .cancelable(false)
+                .negative("取消", null)
+                .show();
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final MusicSearch.MyPlaylists r =
+                        MusicSearch.myPlaylists(musicCookie(MusicSearch.SRC_NETEASE));
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            dlg.dismiss();
+                        } catch (Throwable ignored) {
+                        }
+                        if (!r.ok) {
+                            MiuixWindow.builder(MainActivity.this)
+                                    .title("获取失败")
+                                    .message(r.error)
+                                    .positive("知道了", null)
+                                    .show();
+                            return;
+                        }
+                        if (r.items.isEmpty()) {
+                            toast("账号里没有歌单");
+                            return;
+                        }
+                        showMyPlaylists(r);
+                    }
+                });
+            }
+        }, "my-playlists").start();
+    }
+
+    /** 展示我的歌单列表。 */
+    private void showMyPlaylists(final MusicSearch.MyPlaylists r) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+
+        if (!r.nickname.isEmpty()) {
+            TextView who = UiConfig.text(this, "账号：" + r.nickname, 11f,
+                    MiuixTheme.onSurfaceVariant());
+            who.setPadding(dp(12), dp(2), dp(12), dp(6));
+            box.addView(who);
+        }
+
+        ScrollView sv = new ScrollView(this);
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        sv.addView(list);
+        box.addView(sv, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(340)));
+
+        for (final MusicSearch.PlaylistInfo info : r.items) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(12), dp(10), dp(12), dp(10));
+            row.setClickable(true);
+
+            TextView nm = UiConfig.text(this,
+                    (info.special ? "♥ " : "▸ ") + info.name, 13f,
+                    info.special ? 0xFFE0483B : MiuixTheme.onSurface());
+            nm.setSingleLine(true);
+            nm.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            row.addView(nm, new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+            TextView cnt = UiConfig.text(this, info.trackCount + " 首", 10.5f,
+                    MiuixTheme.onSurfaceVariant());
+            row.addView(cnt);
+
+            row.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    loadPlaylist(info.id);
+                }
+            });
+            list.addView(row);
+        }
+
+        MiuixWindow.builder(this)
+                .title("我的歌单（" + r.items.size() + "）")
+                .content(box)
+                .scrollable(false)
+                .negative("关闭", null)
                 .show();
     }
 
