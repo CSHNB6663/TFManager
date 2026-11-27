@@ -720,8 +720,16 @@ public class MainActivity extends Activity {
         names.addView(sub);
         head.addView(names, nlp);
 
-        // 右上角长条按钮：番茄小说下载
-        head.addView(buildNovelStrip());
+        // 右上角长条按钮：番茄小说 + 在线音乐
+        LinearLayout strips = new LinearLayout(this);
+        strips.setOrientation(LinearLayout.HORIZONTAL);
+        strips.setGravity(Gravity.CENTER_VERTICAL);
+        strips.addView(buildNovelStrip());
+        LinearLayout.LayoutParams stripGap = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        stripGap.leftMargin = dp(6);
+        strips.addView(buildMusicStrip(), stripGap);
+        head.addView(strips);
         page.addView(head);
 
         // 状态卡：左右两个方块（左 = root 状态方块，右 = 终端方块）
@@ -1691,9 +1699,32 @@ public class MainActivity extends Activity {
 
     /** 首页右上角的长条按钮：番茄小说下载。 */
     private View buildNovelStrip() {
+        return buildStrip("番茄小说", "ic_file_ebook", 0xFFEAF1FF, 0xFFDCE8FF,
+                ThemeColors.ACCENT, new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        showFanqieDialog();
+                    }
+                });
+    }
+
+    /** 首页右上角长条按钮（音乐）。 */
+    private View buildMusicStrip() {
+        return buildStrip("在线音乐", "ic_file_audio", 0xFFF0ECFF, 0xFFE4DDFF,
+                0xFF6A4CE0, new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        showMusicSearch();
+                    }
+                });
+    }
+
+    /** 通用长条胶囊按钮。 */
+    private View buildStrip(String title, String iconName, int tintA, int tintB,
+                            int color, View.OnClickListener click) {
         MiuixGlass strip = new MiuixGlass(this);
         strip.radiusDp(20);
-        strip.tint(0xFFEAF1FF, 0xFFDCE8FF);
+        strip.tint(tintA, tintB);
         strip.rim(0x40FFFFFF, 0x143482FF);
         strip.specular(false);
         strip.paddingDp(12, 8, 14, 8);
@@ -1705,17 +1736,17 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         ImageView icon = new ImageView(this);
-        int res = resId("ic_file_ebook");
+        int res = resId(iconName);
         if (res != 0) {
             icon.setImageResource(res);
-            icon.setColorFilter(ThemeColors.ACCENT);
+            icon.setColorFilter(color);
         }
         row.addView(icon, new LinearLayout.LayoutParams(dp(20), dp(20)));
 
         TextView tv = new TextView(this);
-        tv.setText("番茄小说");
+        tv.setText(title);
         tv.setTextSize(13f);
-        tv.setTextColor(ThemeColors.ACCENT);
+        tv.setTextColor(color);
         tv.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -1725,19 +1756,14 @@ public class MainActivity extends Activity {
         TextView arrow = new TextView(this);
         arrow.setText("›");
         arrow.setTextSize(16f);
-        arrow.setTextColor(ThemeColors.ACCENT);
+        arrow.setTextColor(color);
         LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         alp.leftMargin = dp(4);
         row.addView(arrow, alp);
 
         strip.setClickable(true);
-        strip.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                showFanqieDialog();
-            }
-        });
+        strip.setOnClickListener(click);
         return strip;
     }
 
