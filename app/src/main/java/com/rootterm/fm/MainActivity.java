@@ -2836,6 +2836,20 @@ public class MainActivity extends Activity {
         box.addView(et);
         box.addView(loginHint);
 
+        TextView plBtn = UiConfig.button(this, "查看歌单", false);
+        plBtn.setSingleLine(true);
+        plBtn.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f);
+        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(34));
+        plp.topMargin = dp(10);
+        plBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showPlaylistInput();
+            }
+        });
+        box.addView(plBtn, plp);
+
         final android.app.Dialog[] holder = new android.app.Dialog[1];
 
         btnNe.setOnClickListener(new View.OnClickListener() {
@@ -2938,6 +2952,291 @@ public class MainActivity extends Activity {
                 }
             }
         });
+    }
+
+    /** 输入歌单链接/ID。 */
+    private void showPlaylistInput() {
+        final android.widget.EditText et = new android.widget.EditText(this);
+        et.setSingleLine(true);
+        et.setHint("歌单链接或 ID，如 24381616");
+        styleInput(et);
+        String last = uiPrefs().getString("last_playlist", "");
+        if (!last.isEmpty()) {
+            et.setText(last);
+        }
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        TextView tip = UiConfig.text(this,
+                "在网易云里打开歌单 → 分享 → 复制链接，粘贴到这里。\n"
+                        + "只读取公开歌单；私密歌单需要先「登录」。",
+                11f, MiuixTheme.onSurfaceVariant());
+        tip.setLineSpacing(dp(2), 1f);
+        box.addView(tip);
+        TextView g2 = new TextView(this);
+        g2.setHeight(dp(8));
+        box.addView(g2);
+        box.addView(et);
+
+        MiuixWindow.builder(this)
+                .title("查看网易云歌单")
+                .content(box)
+                .scrollable(false)
+                .positive("打开", new MiuixWindow.OnAction() {
+                    @Override
+                    public void onClick(android.app.Dialog d) {
+                        String v = et.getText().toString().trim();
+                        if (v.isEmpty()) {
+                            toast("请输入歌单链接或 ID");
+                            return;
+                        }
+                        uiPrefs().edit().putString("last_playlist", v).apply();
+                        loadPlaylist(v);
+                    }
+                })
+                .negative("取消", null)
+                .show();
+    }
+
+    /** 加载歌单并展示。 */
+    private void loadPlaylist(final String input) {
+        final TextView st = UiConfig.text(this, "获取歌单信息…", 12f,
+                MiuixTheme.onSurfaceVariant());
+        final android.widget.ProgressBar bar = new android.widget.ProgressBar(this, null,
+                android.R.attr.progressBarStyleHorizontal);
+        bar.setMax(1000);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.addView(st);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(6));
+        bp.topMargin = dp(10);
+        box.addView(bar, bp);
+
+        final android.app.Dialog dlg = MiuixWindow.builder(this)
+                .title("加载歌单")
+                .content(box)
+                .scrollable(false)
+                .cancelable(false)
+                .negative("后台继续", null)
+                .show();
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final MusicSearch.Playlist pl = MusicSearch.playlist(input,
+                        musicCookie(MusicSearch.SRC_NETEASE), 500,
+                        new MusicSearch.PlaylistProgress() {
+                            @Override
+                            public void onProgress(final int done, final int total,
+                                                   final String msg) {
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        st.setText(msg);
+                                        if (total > 0) {
+                                            bar.setProgress(done * 1000 / total);
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            dlg.dismiss();
+                        } catch (Throwable ignored) {
+                        }
+                        if (!pl.ok) {
+                            MiuixWindow.builder(MainActivity.this)
+                                    .title("打开失败")
+                                    .message(pl.error)
+                                    .positive("知道了", null)
+                                    .show();
+                            return;
+                        }
+                        if (pl.tracks.isEmpty()) {
+                            toast("歌单里没有可读取的歌曲");
+                            return;
+                        }
+                        showPlaylistResults(pl);
+                    }
+                });
+            }
+        }, "playlist-load").start();
+    }
+
+    /** 歌单结果列表。 */
+    private void showPlaylistResults(final MusicSearch.Playlist pl) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+
+        TextView head = UiConfig.text(this,
+                "《" + pl.name + "》共 " + pl.trackCount + " 首"
+                        + (pl.tracks.size() < pl.trackCount
+                        ? "（已解析 " + pl.tracks.size() + " 首）" : ""),
+                11.5f, MiuixTheme.onSurfaceVariant());
+        head.setPadding(dp(12), dp(2), dp(12), dp(8));
+        box.addView(head);
+
+        TextView all = UiConfig.button(this, "下载全部（" + pl.tracks.size() + "）", true);
+        all.setSingleLine(true);
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(36));
+        alp.leftMargin = dp(10);
+        alp.rightMargin = dp(10);
+        alp.bottomMargin = dp(8);
+        all.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                downloadPlaylist(pl);
+            }
+        });
+        box.addView(all, alp);
+
+        ScrollView sv = new ScrollView(this);
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        sv.addView(list);
+        box.addView(sv, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(330)));
+
+        int idx = 0;
+        for (final MusicSearch.Track t : pl.tracks) {
+            idx++;
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(10), dp(8), dp(10), dp(8));
+
+            TextView no = UiConfig.text(this, String.valueOf(idx), 10.5f,
+                    MiuixTheme.onSurfaceVariant());
+            no.setMinWidth(dp(22));
+            row.addView(no);
+
+            LinearLayout texts = new LinearLayout(this);
+            texts.setOrientation(LinearLayout.VERTICAL);
+            TextView nm = UiConfig.text(this, t.name, 12.5f, MiuixTheme.onSurface());
+            nm.setSingleLine(true);
+            nm.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            TextView sub = UiConfig.text(this,
+                    t.artist + (t.duration > 0 ? " · " + MusicSearch.fmtDuration(t.duration) : ""),
+                    10f, MiuixTheme.onSurfaceVariant());
+            sub.setSingleLine(true);
+            texts.addView(nm);
+            texts.addView(sub);
+            row.addView(texts, new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+            TextView dl = UiConfig.button(this, "下载", false);
+            dl.setSingleLine(true);
+            dl.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 11.5f);
+            dl.setPadding(dp(2), 0, dp(2), 0);
+            LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(52), dp(30));
+            dlp.leftMargin = dp(6);
+            dl.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    downloadTrack(t, MusicSearch.SRC_NETEASE);
+                }
+            });
+            row.addView(dl, dlp);
+            list.addView(row);
+        }
+
+        MiuixWindow.builder(this)
+                .title("歌单")
+                .content(box)
+                .scrollable(false)
+                .negative("关闭", null)
+                .show();
+    }
+
+    /** 批量下载整个歌单（顺序，边下边显示进度）。 */
+    private void downloadPlaylist(final MusicSearch.Playlist pl) {
+        final TextView st = new TextView(this);
+        st.setText("准备下载…");
+        st.setTextSize(12.5f);
+        st.setTextColor(MiuixTheme.onSurface());
+        final android.widget.ProgressBar bar = new android.widget.ProgressBar(this, null,
+                android.R.attr.progressBarStyleHorizontal);
+        bar.setMax(1000);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.addView(st);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(6));
+        bp.topMargin = dp(10);
+        box.addView(bar, bp);
+
+        MiuixWindow.builder(this)
+                .title("下载歌单")
+                .content(box)
+                .scrollable(false)
+                .cancelable(false)
+                .negative("后台继续", null)
+                .show();
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                int ok = 0, fail = 0, skip = 0;
+                java.io.File dir = new java.io.File("/sdcard/Download/音乐");
+                dir.mkdirs();
+                String cookie = musicCookie(MusicSearch.SRC_NETEASE);
+                int total = pl.tracks.size();
+                for (int i = 0; i < total; i++) {
+                    final MusicSearch.Track t = pl.tracks.get(i);
+                    final int n = i + 1;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            st.setText("(" + n + "/" + total + ") " + t.name);
+                            bar.setProgress(n * 1000 / Math.max(1, total));
+                        }
+                    });
+                    try {
+                        String safe = (t.artist + " - " + t.name)
+                                .replaceAll("[\\\\\\\\/:*?\"<>|\\n\\r]", "_");
+                        if (safe.length() > 80) {
+                            safe = safe.substring(0, 80);
+                        }
+                        java.io.File out = new java.io.File(dir, safe + ".mp3");
+                        if (out.isFile() && out.length() > 100 * 1024) {
+                            skip++;
+                            continue;
+                        }
+                        String url = MusicSearch.downloadUrl(t, cookie, "");
+                        if (url == null) {
+                            fail++;
+                            continue;
+                        }
+                        MultiDownloader.download(url, out, 4, null);
+                        if (out.length() < 100 * 1024) {
+                            out.delete();
+                            fail++;
+                        } else {
+                            ok++;
+                        }
+                    } catch (Throwable th) {
+                        fail++;
+                    }
+                }
+                final int fok = ok, ffail = fail, fskip = skip;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        bar.setProgress(1000);
+                        st.setText("完成：成功 " + fok + " 首"
+                                + (fskip > 0 ? "，已存在 " + fskip : "")
+                                + (ffail > 0 ? "，失败 " + ffail : ""));
+                        st.setTextColor(ffail > 0 ? MiuixTheme.error() : MiuixTheme.success());
+                        toast("歌单下载完成");
+                    }
+                });
+            }
+        }, "playlist-dl").start();
     }
 
     private void searchMusic(final String kw) {

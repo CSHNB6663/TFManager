@@ -531,6 +531,186 @@ public final class MusicSearch {
         return str(obj.substring(a, b), "name");
     }
 
+    // ================================================================ 歌单
+
+    /** 歌单。 */
+    public static final class Playlist {
+        public boolean ok;
+        public String error = "";
+        public String name = "";
+        public int trackCount;
+        public final List<Track> tracks = new ArrayList<Track>();
+    }
+
+    /** 歌单加载进度。 */
+    public interface PlaylistProgress {
+        void onProgress(int done, int total, String message);
+    }
+
+    /** 从链接或纯数字里取歌单 id。 */
+    public static String parsePlaylistId(String input) {
+        if (input == null) {
+            return "";
+        }
+        String s = input.trim();
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("(?:playlist\\?|playlist/|id=)(\\d{4,})").matcher(s);
+        if (m.find()) {
+            return m.group(1);
+        }
+        if (s.matches("\\d{4,}")) {
+            return s;
+        }
+        return "";
+    }
+
+    /**
+     * 拉取歌单（阻塞，后台线程）。
+     *
+     * @param maxTracks 最多解析多少首（0 表示不限，但会很久）
+     */
+    public static Playlist playlist(String input, String cookie, int maxTracks,
+                                    PlaylistProgress p) {
+        Playlist pl = new Playlist();
+        String id = parsePlaylistId(input);
+        if (id.isEmpty()) {
+            pl.error = "请输入歌单链接或歌单 ID\n例如：https://music.163.com/playlist?id=24381616";
+            return pl;
+        }
+        try {
+            if (p != null) {
+                p.onProgress(0, 1, "获取歌单信息…");
+            }
+            String body = httpGet("https://music.163.com/api/v6/playlist/detail?id=" + id
+                    + "&n=1000&s=8", "https://music.163.com/", cookie);
+            int pi = body.indexOf("\"playlist\"");
+            if (pi < 0) {
+                pl.error = "接口未返回歌单（可能是私密歌单或需要登录）";
+                return pl;
+            }
+            int objStart = body.indexOf('{', pi);
+            int objEnd = matchBrace(body, objStart);
+            String plObj = objEnd > objStart ? body.substring(objStart, objEnd + 1) : "";
+
+            pl.name = topStr(plObj, "name");
+            String tc = topNum(plObj, "trackCount");
+            pl.trackCount = (int) parseLong(tc);
+
+            // trackIds
+            List<String> ids = new ArrayList<String>();
+            int ti = plObj.indexOf("\"trackIds\"");
+            if (ti >= 0) {
+                int a = plObj.indexOf('[', ti);
+                int b = matchBracket(plObj, a);
+                if (a > 0 && b > a) {
+                    java.util.regex.Matcher m = java.util.regex.Pattern
+                            .compile("\\{\"id\":(\\d+)").matcher(plObj.substring(a, b));
+                    while (m.find()) {
+                        ids.add(m.group(1));
+                    }
+                }
+            }
+            if (ids.isEmpty()) {
+                // 退化：用 tracks 里已有的
+                int tr = plObj.indexOf("\"tracks\"");
+                if (tr >= 0) {
+                    int a = plObj.indexOf('[', tr);
+                    int b = matchBracket(plObj, a);
+                    if (a > 0 && b > a) {
+                        for (String o : splitObjects(plObj, a + 1, b)) {
+                            String tid = topNum(o, "id");
+                            if (!tid.isEmpty()) {
+                                ids.add(tid);
+                            }
+                        }
+                    }
+                }
+            }
+            if (pl.trackCount <= 0) {
+                pl.trackCount = ids.size();
+            }
+            int limit = maxTracks > 0 ? Math.min(maxTracks, ids.size()) : ids.size();
+            if (p != null) {
+                p.onProgress(0, limit, "歌单《" + pl.name + "》共 " + pl.trackCount + " 首");
+            }
+
+            // 分批取详情（每批 200）
+            int batch = 200;
+            for (int from = 0; from < limit; from += batch) {
+                int to = Math.min(limit, from + batch);
+                StringBuilder sb = new StringBuilder();
+                for (int k = from; k < to; k++) {
+                    if (sb.length() > 0) {
+                        sb.append(',');
+                    }
+                    sb.append(ids.get(k));
+                }
+                String url = "https://music.163.com/api/song/detail?ids=%5B"
+                        + sb.toString() + "%5D";
+                String detail = httpGet(url, "https://music.163.com/", cookie);
+                int si = detail.indexOf("\"songs\"");
+                if (si >= 0) {
+                    int a = detail.indexOf('[', si);
+                    int b = matchBracket(detail, a);
+                    if (a > 0 && b > a) {
+                        for (String o : splitObjects(detail, a + 1, b)) {
+                            Track t = new Track();
+                            t.source = SRC_NETEASE;
+                            t.id = topNum(o, "id");
+                            t.name = topStr(o, "name");
+                            t.artist = firstArtist(o);
+                            t.duration = (int) (parseLong(topNum(o, "duration")) / 1000);
+                            if (!t.id.isEmpty() && !t.name.isEmpty()) {
+                                pl.tracks.add(t);
+                            }
+                        }
+                    }
+                }
+                if (p != null) {
+                    p.onProgress(to, limit, "已解析 " + pl.tracks.size() + " 首…");
+                }
+            }
+            pl.ok = true;
+            AppLog.log("MUSIC", "playlist " + id + " → " + pl.tracks.size() + "/" + pl.trackCount);
+            return pl;
+        } catch (Throwable t) {
+            pl.error = t.getClass().getSimpleName() + ": " + t.getMessage();
+            return pl;
+        }
+    }
+
+    /** 花括号配对。 */
+    private static int matchBrace(String s, int start) {
+        if (start < 0 || start >= s.length() || s.charAt(start) != '{') {
+            return -1;
+        }
+        int depth = 0;
+        boolean inStr = false;
+        for (int i = start; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (inStr && c == '\\') {
+                i++;
+                continue;
+            }
+            if (c == '"') {
+                inStr = !inStr;
+                continue;
+            }
+            if (inStr) {
+                continue;
+            }
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
     /** 时长格式化。 */
     public static String fmtDuration(int sec) {
         if (sec <= 0) {
