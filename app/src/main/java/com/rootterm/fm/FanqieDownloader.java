@@ -287,9 +287,20 @@ public final class FanqieDownloader {
         sb.append("说明：未登录仅能获取试读片段，部分字符受字体混淆可能错字。\n");
         sb.append("章节总数：").append(book.total > 0 ? book.total : book.chapterIds.size())
                 .append("，本次导出前 ").append(total).append(" 章\n");
+        int preLocked = 0;
+        for (int i = 0; i < Math.min(total, book.chapterLocked.size()); i++) {
+            if (book.chapterLocked.get(i)) {
+                preLocked++;
+            }
+        }
+        if (preLocked > 0) {
+            sb.append("其中 ").append(preLocked)
+                    .append(" 章为「锁章」（番茄仅给试读片段），已标注未下载正文\n");
+        }
         sb.append("————————————\n\n");
 
         int ok = 0;
+        int lockedCount = 0;
         for (int i = 0; i < total; i++) {
             String cid = book.chapterIds.get(i);
             if (p != null) {
@@ -301,11 +312,23 @@ public final class FanqieDownloader {
                 Chapter c = fetchChapter(cid);
                 String title = c.title == null || c.title.isEmpty() ? name : c.title;
                 sb.append(title.isEmpty() ? ("第" + (i + 1) + "章") : title).append("\n\n");
-                if (c.text == null || c.text.trim().isEmpty()) {
-                    sb.append(locked ? "（该章未解锁，需在番茄 App 内购买/开通会员）"
-                            : "（该章正文为空，可能需要登录）").append("\n\n");
+
+                String body = c.text == null ? "" : c.text.trim();
+                // 番茄对锁章只返回约 200 字试读片段，不能当正文
+                boolean truncated = body.length() > 0 && body.length() < 250;
+                if (body.isEmpty()) {
+                    sb.append(locked
+                            ? "（本章需在番茄 App 内解锁，未下载正文）"
+                            : "（本章正文为空，可能需要登录）").append("\n\n");
+                    if (locked) {
+                        lockedCount++;
+                    }
+                } else if (locked && truncated) {
+                    sb.append("（本章为试读片段，需在番茄 App 内登录/开通会员后解锁）")
+                            .append("\n\n");
+                    lockedCount++;
                 } else {
-                    sb.append(c.text).append("\n\n");
+                    sb.append(body).append("\n\n");
                     ok++;
                 }
             } catch (Throwable t) {
@@ -325,8 +348,10 @@ public final class FanqieDownloader {
             }
         }
         if (p != null) {
-            p.onProgress(total, total, "完成：" + ok + "/" + total + " 章");
+            p.onProgress(total, total, "完成：" + ok + " 章完整"
+                    + (lockedCount > 0 ? "，" + lockedCount + " 章锁定" : ""));
         }
+        AppLog.log("FANQIE", "done ok=" + ok + " locked=" + lockedCount + " total=" + total);
         return out;
     }
 
