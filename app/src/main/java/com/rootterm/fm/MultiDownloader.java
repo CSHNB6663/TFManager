@@ -235,19 +235,30 @@ public final class MultiDownloader {
 
     // ---------------------------------------------------------------- 工具
 
-    /** 打开连接，手动跟随重定向（保留 Range 头）。 */
+    /** 打开连接，手动跟随重定向（保留 Range 头；http 优先升级为 https）。 */
     private static HttpURLConnection open(String url, String range) throws Exception {
-        String cur = url;
+        String cur = preferHttps(url);
         for (int hop = 0; hop < 6; hop++) {
-            HttpURLConnection conn = (HttpURLConnection) new URL(cur).openConnection();
-            conn.setConnectTimeout(CONNECT_TIMEOUT);
-            conn.setReadTimeout(READ_TIMEOUT);
-            conn.setInstanceFollowRedirects(false);
-            conn.setRequestProperty("User-Agent", "TFManager/" + AppVersion.NAME);
-            if (range != null) {
-                conn.setRequestProperty("Range", range);
+            HttpURLConnection conn;
+            int code;
+            try {
+                conn = (HttpURLConnection) new URL(cur).openConnection();
+                conn.setConnectTimeout(CONNECT_TIMEOUT);
+                conn.setReadTimeout(READ_TIMEOUT);
+                conn.setInstanceFollowRedirects(false);
+                conn.setRequestProperty("User-Agent", "TFManager/" + AppVersion.NAME);
+                if (range != null) {
+                    conn.setRequestProperty("Range", range);
+                }
+                code = conn.getResponseCode();
+            } catch (Exception e) {
+                // https 不通时退回 http（部分 CDN 只支持明文）
+                if (cur.startsWith("https://")) {
+                    cur = "http://" + cur.substring(8);
+                    continue;
+                }
+                throw e;
             }
-            int code = conn.getResponseCode();
             if (code >= 300 && code < 400) {
                 String loc = conn.getHeaderField("Location");
                 try {
@@ -257,13 +268,21 @@ public final class MultiDownloader {
                 if (loc == null || loc.isEmpty()) {
                     throw new Exception("重定向缺少 Location");
                 }
-                cur = loc.startsWith("http") ? loc
-                        : new URL(new URL(cur), loc).toString();
+                cur = preferHttps(loc.startsWith("http") ? loc
+                        : new URL(new URL(cur), loc).toString());
                 continue;
             }
             return conn;
         }
         throw new Exception("重定向次数过多");
+    }
+
+    /** http:// → https://（失败会自动回退）。 */
+    private static String preferHttps(String u) {
+        if (u != null && u.startsWith("http://")) {
+            return "https://" + u.substring(7);
+        }
+        return u;
     }
 
     /** 从 Content-Range: bytes 0-0/12345 里取总大小。 */

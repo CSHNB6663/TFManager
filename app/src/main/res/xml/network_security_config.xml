@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  音乐/小说 CDN 会 302 到 http:// 地址（如 m701.music.126.net），
+  Android 9+ 默认禁止明文 HTTP，这里放开（优先仍走 HTTPS）。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

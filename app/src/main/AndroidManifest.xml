@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.rootterm.fm"
-    android:versionCode="40331"
-    android:versionName="6.4.1">
+    android:versionCode="40332"
+    android:versionName="6.4.2">
 
     <!-- minSdk 26：Android 8.0；targetSdk 37：面向 Android 17 -->
     <uses-sdk
@@ -39,6 +39,8 @@
 
     <application
         android:allowBackup="false"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:enableOnBackInvokedCallback="true"
         android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"
