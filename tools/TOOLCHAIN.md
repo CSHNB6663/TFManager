@@ -71,7 +71,7 @@ rootterm/
     out/                        构建中间产物（每次构建清空）
     debug.keystore              调试签名密钥（setup.sh / build.sh 自动生成）
   dist/
-    RootTerm-1.0.apk            正式产物（debug 签名，约 61 KB）
+    RootTerm-<版本>.apk          产物（正式签名；缺密钥时回退 debug 并告警）
     RootTerm-1.0.apk.idsig      apksigner 生成的 v4 签名附属文件（对安装无影响，可忽略）
 ```
 
@@ -114,7 +114,7 @@ bash build.sh -h
 | 3 | `java -cp d8.jar com.android.tools.r8.D8 --min-api 26 --lib android.jar --output out/dex <所有 .class>` |
 | 4 | python3 把 `out/dex/classes.dex` 追加进 `out/base.apk` → `out/unsigned.apk` |
 | 5 | `zipalign -f -p 4 out/unsigned.apk out/aligned.apk`（必须在签名前） |
-| 6 | `apksigner sign --ks tools/debug.keystore --ks-pass pass:android --key-pass pass:android --min-sdk-version 26 --v1/v2/v3-signing-enabled true --out dist/RootTerm-1.0.apk out/aligned.apk` |
+| 6 | `apksigner sign --ks .signing/release.keystore --ks-pass pass:<pw> --key-pass pass:<pw> --ks-key-alias rootterm --min-sdk-version 26 --v1/v2/v3-signing-enabled true --out dist/RootTerm-1.0.apk out/aligned.apk` |
 | 7 | 校验：`apksigner verify -v` + `aapt dump badging`，并**硬断言** `sdkVersion:'26'`、`targetSdkVersion:'37'`，任一不满足 exit 1 |
 
 实测：`bash build.sh` 一次通过，约 **10 秒**；产物 `dist/RootTerm-1.0.apk` 约 61 KB。
@@ -139,18 +139,37 @@ aapt/aapt2 不校验 targetSdk 上限，`--target-sdk-version 37` 直接写进 m
 **compileSdk 36 + targetSdk 37** 的组合是刻意为之（SPEC 硬约束）。
 
 ### 6.3 签名
-- `tools/debug.keystore`：PKCS12，`storepass`/`keypass` 都是 `android`，alias `androiddebugkey`；
-  生成命令：
+- **正式签名（默认）**：`.signing/release.keystore`（PKCS12，alias `rootterm`，RSA 4096，有效期到 2056），
+  密码放在 `.signing/pass.txt`。两者都在 `.gitignore` 里，**绝不可提交到仓库**。
+  `build.sh` 自动优先使用它；可用环境变量覆盖：
   ```bash
-  keytool -genkeypair -keystore tools/debug.keystore -storetype PKCS12 \
-      -storepass android -alias androiddebugkey -keypass android \
-      -keyalg RSA -keysize 2048 -validity 10000 \
-      -dname "CN=Android Debug,O=Android,C=US"
+  RELEASE_KS=/path/to/ks RELEASE_KS_PASS=xxxx RELEASE_KS_ALIAS=rootterm bash build.sh
   ```
+  首次生成（换机后照此重建，但**换 key 会导致无法覆盖安装**）：
+  ```bash
+  mkdir -p .signing && chmod 700 .signing
+  keytool -genkeypair -keystore .signing/release.keystore -storetype PKCS12 \
+      -storepass "$PASS" -alias rootterm -keypass "$PASS" \
+      -keyalg RSA -keysize 4096 -validity 10950 \
+      -dname "CN=TF Manager, O=CSHNB6663, C=CN"
+  ```
+- **回退**：找不到正式密钥时用 `tools/debug.keystore`（PKCS12，密码 `android`，alias `androiddebugkey`），
+  构建会打印醒目告警。debug 签名不可分发：密码公开，任何人都能签出同签名包。
 - 必须先 `zipalign` 后 `apksigner`（v2 签名块会覆盖对齐信息）。
-- `dist/` 下的 `RootTerm-1.0.apk.idsig` 是 v4 签名附属文件，**不影响安装**，可忽略/删除。
-- debug 自签名只适合自用/内测，不能上架；换正式签名只需换 keystore。
-- keystore 一旦生成不要删，否则签名 key 变化，覆盖安装会失败（需先卸载旧 APK）。
+- `dist/` 下的 `*.idsig` 是 v4 签名附属文件，**不影响安装**，可忽略/删除。
+- **keystore 一旦生成不要删**，否则签名 key 变化，覆盖安装会失败（必须先卸载旧 APK，应用数据会丢）。
+  请离线备份 `.signing/release.keystore` 与 `pass.txt`。
+
+### 6.3.1 版本号唯一来源
+- `app/src/main/java/com/rootterm/fm/AppVersion.java` 的 `CODE` / `NAME` 是唯一来源。
+- `build.sh` 在构建时把两者 `sed` 注入 `tools/out/AndroidManifest.xml` 再交给 aapt，
+  所以 `AndroidManifest.xml` 里的 `versionCode`/`versionName` 只是占位，改了会被覆盖。
+- 编码规则：`CODE = major*10000 + minor*100 + patch`（6.4.3 → 60403），与更新源 tag 解析一致。
+
+### 6.3.2 可复现构建
+- `tools/encstrings.py` 的 BuildKey 默认由 `BUILD_SEED` 决定，`build.sh` 默认取 `tfmanager-<版本号>`，
+  因此**同源码同版本重复构建 dex 字节一致**。
+- 需要每次随机（例如防批量对比）：`BUILD_SEED=random bash build.sh`。
 
 ### 6.4 javac / d8
 - `javac -source 8 -target 8 -bootclasspath android.jar`：JDK 17 下合法，`-bootclasspath` 只在

@@ -27,7 +27,7 @@ JAR36="$SDK/android.jar"      # API 36：javac / aapt2 用
 JAR34="$SDK/android34.jar"    # API 34：aapt1 回退用
 OUT="tools/out"
 DIST="dist"
-APK="$DIST/RootTerm-6.4.2.apk"
+APK="$DIST/RootTerm-6.4.3.apk"
 FORCE_AAPT1=""
 OBFUSCATE=1
 
@@ -45,15 +45,50 @@ done
 for f in "$JAR36" "$SDK/d8.jar" "$SDK/apksigner.jar"; do
   [ -f "$f" ] || { echo "缺少 $f，请先跑 bash tools/setup.sh" >&2; exit 1; }
 done
-[ -f tools/debug.keystore ] || keytool -genkeypair -keystore tools/debug.keystore \
-  -storetype PKCS12 -storepass android -alias androiddebugkey -keypass android \
-  -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+# ---- 签名密钥选择：优先正式 release 密钥，没有才回退 debug（并告警）----
+#   正式密钥路径/密码可用环境变量覆盖：
+#     RELEASE_KS=/path/to/ks  RELEASE_KS_PASS=xxxx  RELEASE_KS_ALIAS=rootterm
+KS=".signing/release.keystore"
+KS_PASS_FILE=".signing/pass.txt"
+KS_ALIAS="${RELEASE_KS_ALIAS:-rootterm}"
+if [ -n "${RELEASE_KS:-}" ]; then
+  KS="$RELEASE_KS"
+elif [ ! -f "$KS" ]; then
+  KS="tools/debug.keystore"
+  KS_ALIAS="androiddebugkey"
+fi
+if [ -n "${RELEASE_KS_PASS:-}" ]; then
+  KS_PASS="$RELEASE_KS_PASS"
+elif [ -f "$KS_PASS_FILE" ] && [ "$KS" = ".signing/release.keystore" ]; then
+  KS_PASS="$(cat "$KS_PASS_FILE")"
+else
+  KS_PASS="android"
+fi
+if [ "$KS" = "tools/debug.keystore" ]; then
+  echo "!! 警告：未找到正式密钥 .signing/release.keystore，本次用 debug 证书签名（不可分发）" >&2
+  [ -f tools/debug.keystore ] || keytool -genkeypair -keystore tools/debug.keystore \
+    -storetype PKCS12 -storepass android -alias androiddebugkey -keypass android \
+    -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+else
+  [ -f "$KS" ] || { echo "签名密钥不存在: $KS" >&2; exit 1; }
+fi
+echo "== 签名密钥: $KS (alias=$KS_ALIAS)"
 
 rm -rf "$OUT"; mkdir -p "$OUT/gen/com/rootterm/fm" "$OUT/classes" "$OUT/dex" "$DIST"
 
+# ---- 版本号唯一来源：AppVersion.java（自动注入 Manifest，避免两处不同步）----
+VCODE="$(sed -n 's/.*CODE = \([0-9]\+\);.*/\1/p' app/src/main/java/com/rootterm/fm/AppVersion.java | head -1)"
+VNAME="$(sed -n 's/.*NAME = "\(.*\)";.*/\1/p' app/src/main/java/com/rootterm/fm/AppVersion.java | head -1)"
+[ -n "$VCODE" ] && [ -n "$VNAME" ] || { echo "无法从 AppVersion.java 解析版本号" >&2; exit 1; }
+sed -e "s/android:versionCode=\"[0-9]*\"/android:versionCode=\"$VCODE\"/" \
+    -e "s/android:versionName=\"[^\"]*\"/android:versionName=\"$VNAME\"/" \
+    app/src/main/AndroidManifest.xml > "$OUT/AndroidManifest.xml"
+MANIFEST="$OUT/AndroidManifest.xml"
+echo "== 版本: $VNAME ($VCODE)（来自 AppVersion.java）"
+
 # ---- 证书指纹（用于运行时签名校验，防重打包）----
-CERT_SHA256="$(keytool -exportcert -keystore tools/debug.keystore -storepass android \
-  -alias androiddebugkey 2>/dev/null | sha256sum | cut -d' ' -f1)"
+CERT_SHA256="$(keytool -exportcert -keystore "$KS" -storepass "$KS_PASS" \
+  -alias "$KS_ALIAS" 2>/dev/null | sha256sum | cut -d' ' -f1)"
 [ -n "$CERT_SHA256" ] || CERT_SHA256="unknown"
 cat > "$OUT/gen/com/rootterm/fm/BuildCert.java" <<EOF
 package com.rootterm.fm;
@@ -86,14 +121,14 @@ if [ "$MODE" = "aapt2" ]; then
   "$QEMU" -L "$SYSPREFIX" "$AAPT2" link \
     -o "$OUT/base.apk" -I "$JAR36" \
     -A app/src/main/assets \
-    --manifest app/src/main/AndroidManifest.xml \
+    --manifest "$MANIFEST" \
     --java "$OUT/gen" --min-sdk-version 26 --target-sdk-version 37 \
     "$OUT/res.zip"
   AAPT_LINK_JAR="$JAR36"
 else
   echo "== [1/7] aapt1 package（API 34 框架 jar）"
   [ -f "$JAR34" ] || { echo "缺少 $JAR34（aapt1 回退需要 API 34 框架 jar）" >&2; exit 1; }
-  aapt package -f -m -J "$OUT/gen" -M app/src/main/AndroidManifest.xml -S app/src/main/res \
+  aapt package -f -m -J "$OUT/gen" -M "$MANIFEST" -S app/src/main/res \
     -A app/src/main/assets \
     -I "$JAR34" -F "$OUT/base.apk" --min-sdk-version 26 --target-sdk-version 37
   AAPT_LINK_JAR="$JAR34"
@@ -103,6 +138,18 @@ fi
 echo "== [2/7] 加固预处理（字符串加密 + assets 哈希）"
 rm -rf "$OUT/src"
 cp -r app/src/main/java "$OUT/src"
+# 构建可复现：默认用版本号做随机种子（BUILD_SEED=random 可恢复每次随机）
+if [ "${BUILD_SEED:-}" = "random" ]; then
+  unset BUILD_SEED || true
+  echo "   BuildKey 种子: 随机（不可复现）"
+elif [ -z "${BUILD_SEED:-}" ]; then
+  BUILD_SEED="tfmanager-$(sed -n 's/.*NAME = "\(.*\)";.*/\1/p' app/src/main/java/com/rootterm/fm/AppVersion.java | head -1)"
+  export BUILD_SEED
+  echo "   BuildKey 种子: $BUILD_SEED（可复现；BUILD_SEED=random 可关闭）"
+else
+  export BUILD_SEED
+  echo "   BuildKey 种子: $BUILD_SEED（外部指定）"
+fi
 if [ "$OBFUSCATE" = "1" ]; then
   python3 tools/encstrings.py "$OUT/src" "$OUT/gen" app/src/main/assets
 else
@@ -151,7 +198,7 @@ zipalign -f -p 4 "$OUT/unsigned.apk" "$OUT/aligned.apk"
 # ---------------------------------------------------------------- 6. 签名
 echo "== [6/7] apksigner（v2+v3）"
 java -cp "$SDK/apksigner.jar" com.android.apksigner.ApkSignerTool sign \
-  --ks tools/debug.keystore --ks-pass pass:android --key-pass pass:android \
+  --ks "$KS" --ks-pass "pass:$KS_PASS" --key-pass "pass:$KS_PASS" --ks-key-alias "$KS_ALIAS" \
   --min-sdk-version 26 --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
   --out "$APK" "$OUT/aligned.apk"
 

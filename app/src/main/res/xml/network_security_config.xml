@@ -1,12 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  音乐/小说 CDN 会 302 到 http:// 地址（如 m701.music.126.net），
-  Android 9+ 默认禁止明文 HTTP，这里放开（优先仍走 HTTPS）。
+  默认禁止明文 HTTP（Android 9+ 行为），仅对确实会 302 到 http:// 的
+  音乐 / 小说 CDN 域名开白名单。下载器仍会优先把 http 升级为 https，
+  只有 https 连不通时才回退明文。
+
+  如需新增域名：在下面 domain-config 里加 <domain includeSubdomains="true">。
 -->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="true">
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+
+    <!-- 网易云音乐：接口与 CDN（m701.music.126.net 等） -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">music.163.com</domain>
+        <domain includeSubdomains="true">163.com</domain>
+        <domain includeSubdomains="true">126.net</domain>
+        <domain includeSubdomains="true">127.net</domain>
+    </domain-config>
+
+    <!-- 番茄小说 / 常读：正文与插图 CDN -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">fanqienovel.com</domain>
+        <domain includeSubdomains="true">changdunovel.com</domain>
+        <domain includeSubdomains="true">byteimg.com</domain>
+        <domain includeSubdomains="true">pstatp.com</domain>
+        <domain includeSubdomains="true">snssdk.com</domain>
+    </domain-config>
+
+    <!-- QQ 音乐 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">y.qq.com</domain>
+        <domain includeSubdomains="true">qq.com</domain>
+        <domain includeSubdomains="true">qqmusic.qq.com</domain>
+        <domain includeSubdomains="true">gtimg.cn</domain>
+    </domain-config>
+
+    <!-- 更新 / 网盘分享 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">github.com</domain>
+        <domain includeSubdomains="true">githubusercontent.com</domain>
+        <domain includeSubdomains="true">quark.cn</domain>
+        <domain includeSubdomains="true">baidu.com</domain>
+    </domain-config>
 </network-security-config>

@@ -35,6 +35,19 @@ def make_key(n=32):
     return bytes(random.randrange(1, 256) for _ in range(n))
 
 
+def seed_from_env():
+    """BUILD_SEED 环境变量存在时固定随机种子，使构建可复现。"""
+    s = os.environ.get("BUILD_SEED", "").strip()
+    if not s:
+        return None
+    try:
+        seed = int(s)
+    except ValueError:
+        seed = int(hashlib.sha256(s.encode("utf-8")).hexdigest()[:16], 16)
+    random.seed(seed)
+    return seed
+
+
 def xor_b64(plain, key):
     data = plain.encode("utf-8")
     out = bytes(data[i] ^ key[i % len(key)] for i in range(len(data)))
@@ -127,12 +140,13 @@ def main():
         return 2
     src_dir, gen_dir, assets_dir = sys.argv[1], sys.argv[2], sys.argv[3]
 
+    seed = seed_from_env()
     key = make_key()
     gen_buildkey(gen_dir, key)
     _path, n_assets = gen_buildassets(gen_dir, assets_dir)
     files, hits = rewrite(src_dir, key)
 
-    print("  BuildKey 已生成（32 字节随机密钥）")
+    print("  BuildKey 已生成（32 字节%s密钥）" % ("固定种子" if seed is not None else "随机"))
     print("  BuildAssets 已生成：%d 个文件哈希" % n_assets)
     print("  字符串加密：%d 个文件、%d 处字面量已替换" % (files, hits))
     return 0
