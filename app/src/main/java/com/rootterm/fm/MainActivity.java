@@ -727,7 +727,7 @@ public class MainActivity extends Activity {
         strips.addView(buildNovelStrip());
         LinearLayout.LayoutParams stripGap = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        stripGap.leftMargin = dp(6);
+        stripGap.leftMargin = dp(5);
         strips.addView(buildMusicStrip(), stripGap);
         head.addView(strips);
         page.addView(head);
@@ -1244,7 +1244,7 @@ public class MainActivity extends Activity {
             icon.setImageResource(resId);
             icon.setColorFilter(C_TEXT);
         }
-        row.addView(icon, new LinearLayout.LayoutParams(dp(20), dp(20)));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(15), dp(15)));
 
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
@@ -1723,11 +1723,11 @@ public class MainActivity extends Activity {
     private View buildStrip(String title, String iconName, int tintA, int tintB,
                             int color, View.OnClickListener click) {
         MiuixGlass strip = new MiuixGlass(this);
-        strip.radiusDp(20);
+        strip.radiusDp(15);
         strip.tint(tintA, tintB);
         strip.rim(0x40FFFFFF, 0x143482FF);
         strip.specular(false);
-        strip.paddingDp(12, 8, 14, 8);
+        strip.paddingDp(8, 5, 9, 5);
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -1741,25 +1741,25 @@ public class MainActivity extends Activity {
             icon.setImageResource(res);
             icon.setColorFilter(color);
         }
-        row.addView(icon, new LinearLayout.LayoutParams(dp(20), dp(20)));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(15), dp(15)));
 
         TextView tv = new TextView(this);
         tv.setText(title);
-        tv.setTextSize(13f);
+        tv.setTextSize(11f);
         tv.setTextColor(color);
         tv.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        tlp.leftMargin = dp(7);
+        tlp.leftMargin = dp(5);
         row.addView(tv, tlp);
 
         TextView arrow = new TextView(this);
         arrow.setText("›");
-        arrow.setTextSize(16f);
+        arrow.setTextSize(12f);
         arrow.setTextColor(color);
         LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        alp.leftMargin = dp(4);
+        alp.leftMargin = dp(2);
         row.addView(arrow, alp);
 
         strip.setClickable(true);
