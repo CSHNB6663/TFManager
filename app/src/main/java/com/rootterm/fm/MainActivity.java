@@ -145,9 +145,12 @@ public class MainActivity extends Activity {
         UiConfig.ON_ACCENT = ThemeColors.ON_ACCENT;
         setupWindow();
         android.view.View rootView = buildRoot();
-        setContentView(rootView);
+        if (SplashView.shouldPlay(this)) {
+            startSplashThen(rootView);      // 先只显示动画，播完再进应用
+        } else {
+            setContentView(rootView);
+        }
         selectTab(TAB_HOME);
-        maybePlaySplash(rootView);
         Shell.detectRootAsync(new Runnable() {
             @Override
             public void run() {
@@ -569,33 +572,65 @@ public class MainActivity extends Activity {
         return wrap;
     }
 
+    // ------------------------------------------------------------ 启动动画
+
+    /** 动画播放期间为 true：所有启动弹窗都排队等它播完。 */
+    private boolean mSplashActive;
+    private final java.util.ArrayList<Runnable> mAfterSplash =
+            new java.util.ArrayList<Runnable>();
+
+    /** 启动动画期间要弹的东西先存起来，播完再执行。 */
+    private void runAfterSplash(Runnable r) {
+        if (mSplashActive) {
+            mAfterSplash.add(r);
+        } else {
+            r.run();
+        }
+    }
+
+    private void flushAfterSplash() {
+        if (mAfterSplash.isEmpty()) {
+            return;
+        }
+        java.util.ArrayList<Runnable> copy = new java.util.ArrayList<Runnable>(mAfterSplash);
+        mAfterSplash.clear();
+        for (Runnable r : copy) {
+            try {
+                r.run();
+            } catch (Throwable t) {
+                AppLog.log("SPLASH", "延后任务失败", t);
+            }
+        }
+    }
+
     /**
-     * 首次启动播放激活动画；播完移除浮层并记账，之后不再播放。
-     * 卸载重装会清掉 SharedPreferences，所以新用户又能看到。
+     * 首装首次启动：先只把动画铺在窗口上，主界面等动画播完才上屏。
+     * 这样页面不会在动画背后闪一下，也不会被赞助/更新弹窗盖住。
      */
-    private void maybePlaySplash(android.view.View root) {
-        if (!(root instanceof android.widget.FrameLayout)) {
-            return;
-        }
-        if (!SplashView.shouldPlay(this)) {
-            return;
-        }
-        final android.widget.FrameLayout host = (android.widget.FrameLayout) root;
+    private void startSplashThen(final android.view.View root) {
+        mSplashActive = true;
+        final android.widget.FrameLayout shell = new android.widget.FrameLayout(this);
+        shell.setBackgroundColor(0xFFFAFAFC);
         final SplashView splash = new SplashView(this);
+        shell.addView(splash, new android.widget.FrameLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(shell);
+
         splash.setOnFinish(new SplashView.OnFinish() {
             @Override
             public void onFinish() {
+                mSplashActive = false;
                 try {
-                    host.removeView(splash);
-                } catch (Throwable ignored) {
+                    setContentView(root);       // 动画结束才让界面出现
+                } catch (Throwable t) {
+                    AppLog.log("SPLASH", "切换主界面失败", t);
                 }
                 SplashView.markPlayed(MainActivity.this);
-                AppLog.log("APP", "splash 播放完成");
+                AppLog.log("APP", "splash 播放完成，进入应用");
+                flushAfterSplash();
             }
         });
-        host.addView(splash, new android.widget.FrameLayout.LayoutParams(
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT));
         splash.post(new Runnable() {
             @Override
             public void run() {
@@ -1349,6 +1384,16 @@ public class MainActivity extends Activity {
     /** 自动检查（启动时调用）。 */
     private void autoCheckUpdate() {
         if (!uiPrefs().getBoolean("update_auto", true)) {
+            return;
+        }
+        if (mSplashActive) {
+            // 启动动画还在播，等它播完再检查（否则更新弹窗会盖住动画）
+            runAfterSplash(new Runnable() {
+                @Override
+                public void run() {
+                    autoCheckUpdate();
+                }
+            });
             return;
         }
         final String feed = updateFeed();
@@ -2590,6 +2635,16 @@ public class MainActivity extends Activity {
     /** 赞助弹窗：每次进入应用都会弹（远端 sponsor 设为 off 可关闭）。 */
     private void maybeShowSponsor() {
         if (mSponsorShown) {
+            return;
+        }
+        if (mSplashActive) {
+            // 启动动画还没播完，等播完再弹
+            runAfterSplash(new Runnable() {
+                @Override
+                public void run() {
+                    maybeShowSponsor();
+                }
+            });
             return;
         }
         mSponsorShown = true;
