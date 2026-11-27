@@ -2838,11 +2838,13 @@ public class MainActivity extends Activity {
     /** 打开对应平台的登录取 cookie 页面。 */
     private void openMusicLogin() {
         final String src = musicSource;
+        // 用电脑版页面：移动版网易云/QQ音乐都没有「网页登录」入口
         final String url = MusicSearch.SRC_QQ.equals(src)
-                ? "https://y.qq.com/" : "https://music.163.com/";
-        final String title = MusicSearch.SRC_QQ.equals(src) ? "登录 QQ音乐" : "登录网易云音乐";
+                ? "https://y.qq.com/" : "https://music.163.com/#/login";
+        final String title = MusicSearch.SRC_QQ.equals(src) ? "登录 QQ音乐（电脑版）"
+                : "登录网易云音乐（电脑版）";
 
-        final CookieLoginPanel panel = new CookieLoginPanel(this, url, title);
+        final CookieLoginPanel panel = new CookieLoginPanel(this, url, title, true);
         FrameLayout overlay = new FrameLayout(this);
         overlay.setBackgroundColor(0xFFFFFFFF);
         overlay.addView(panel, new FrameLayout.LayoutParams(

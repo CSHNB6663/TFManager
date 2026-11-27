@@ -34,8 +34,18 @@ public class CookieLoginPanel extends LinearLayout {
     private ProgressBar bar;
     private OnDone done;
 
+    /** 桌面版 UA：让网站返回 PC 页面（移动版经常没有登录入口）。 */
+    private static final String DESKTOP_UA =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                    + "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
     @SuppressLint("SetJavaScriptEnabled")
     public CookieLoginPanel(Context c, String url, String titleText) {
+        this(c, url, titleText, true);
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    public CookieLoginPanel(Context c, String url, String titleText, boolean desktop) {
         super(c);
         ctx = c;
         siteUrl = url;
@@ -110,7 +120,18 @@ public class CookieLoginPanel extends LinearLayout {
         s.setDatabaseEnabled(true);
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
-        s.setUserAgentString(s.getUserAgentString());
+        s.setBuiltInZoomControls(true);
+        s.setDisplayZoomControls(false);
+        s.setSupportZoom(true);
+        if (desktop) {
+            // 关键：桌面 UA → 站点返回电脑版页面（才有网页登录入口）
+            s.setUserAgentString(DESKTOP_UA);
+            s.setLoadWithOverviewMode(true);
+            s.setUseWideViewPort(true);
+            s.setTextZoom(100);
+        } else {
+            s.setUserAgentString(s.getUserAgentString());
+        }
 
         CookieManager cm = CookieManager.getInstance();
         cm.setAcceptCookie(true);
@@ -137,6 +158,9 @@ public class CookieLoginPanel extends LinearLayout {
         addView(web, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
+        if (desktop) {
+            web.setInitialScale(55);
+        }
         web.loadUrl(url);
     }
 
