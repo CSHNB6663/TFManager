@@ -1803,6 +1803,20 @@ public class MainActivity extends Activity {
                 pickBgm();
             }
         });
+        bgm.clickRow("免费音乐下载", "Jamendo CC 曲库 · 合法可下载", "",
+                new MiuixPreference.OnClick() {
+                    @Override
+                    public void onClick(View v) {
+                        showMusicSearch();
+                    }
+                });
+        bgm.clickRow("Jamendo Client ID", musicClientId().isEmpty() ? "未设置（点此申请/填写）" : "已设置",
+                "", new MiuixPreference.OnClick() {
+                    @Override
+                    public void onClick(View v) {
+                        promptMusicClientId();
+                    }
+                });
         bgm.clickRow("播放 / 暂停", BgmPlayer.isPlaying() ? "正在播放" : "已暂停", "",
                 new MiuixPreference.OnClick() {
                     @Override
@@ -2721,6 +2735,250 @@ public class MainActivity extends Activity {
                 }
             }
         }, "bgm-auto").start();
+    }
+
+    // ------------------------------------------------------------ 免费音乐（Jamendo）
+
+    private String musicClientId() {
+        String v = uiPrefs().getString("jamendo_cid", "");
+        return v == null ? "" : v.trim();
+    }
+
+    private void promptMusicClientId() {
+        final android.widget.EditText et = new android.widget.EditText(this);
+        et.setSingleLine(true);
+        et.setText(musicClientId());
+        et.setHint("Jamendo Client ID");
+        styleInput(et);
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        TextView tip = UiConfig.text(this,
+                "Jamendo 是 CC 授权免费曲库，下载完全合法。\n\n"
+                        + "申请 Client ID（免费，约 1 分钟）：\n"
+                        + "1) 打开 devportal.jamendo.com\n"
+                        + "2) 用邮箱注册\n"
+                        + "3) Create App → 复制 Client ID\n\n"
+                        + "本 App 不内置任何第三方密钥。",
+                11.5f, 0xFF2A4A7F);
+        tip.setLineSpacing(dp(2), 1f);
+        box.addView(tip);
+        box.addView(label2("Client ID"));
+        box.addView(et);
+
+        MiuixWindow.builder(this)
+                .title("Jamendo Client ID")
+                .content(box)
+                .scrollable(false)
+                .positive("保存", new MiuixWindow.OnAction() {
+                    @Override
+                    public void onClick(android.app.Dialog d) {
+                        uiPrefs().edit().putString("jamendo_cid",
+                                et.getText().toString().trim()).apply();
+                        toast("已保存");
+                    }
+                })
+                .negative("取消", null)
+                .show();
+    }
+
+    private void showMusicSearch() {
+        if (musicClientId().isEmpty()) {
+            promptMusicClientId();
+            return;
+        }
+        final android.widget.EditText et = new android.widget.EditText(this);
+        et.setSingleLine(true);
+        et.setHint("搜索关键词，如 piano / 轻音乐 / guitar");
+        styleInput(et);
+
+        final TextView out = UiConfig.text(this, "", 11.5f, MiuixTheme.onSurfaceVariant());
+        out.setLineSpacing(dp(2), 1f);
+        out.setPadding(0, dp(10), 0, 0);
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.addView(et);
+        box.addView(out);
+
+        final android.app.Dialog dlg = MiuixWindow.builder(this)
+                .title("免费音乐搜索")
+                .content(box)
+                .scrollable(false)
+                .positive("搜索", new MiuixWindow.OnAction() {
+                    @Override
+                    public void onClick(android.app.Dialog d) {
+                        String q = et.getText().toString().trim();
+                        if (q.isEmpty()) {
+                            toast("请输入关键词");
+                            return;
+                        }
+                        out.setText("搜索中…");
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                final MusicSearch.Result r =
+                                        MusicSearch.search(musicClientId(), q);
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        if (!r.ok) {
+                                            out.setText("失败：" + r.error);
+                                            return;
+                                        }
+                                        if (r.tracks.isEmpty()) {
+                                            out.setText("没有找到结果");
+                                            return;
+                                        }
+                                        out.setText("找到 " + r.tracks.size() + " 首，正在打开列表…");
+                                        showMusicResults(r);
+                                    }
+                                });
+                            }
+                        }, "music-search").start();
+                    }
+                })
+                .negative("关闭", null)
+                .show();
+    }
+
+    private void showMusicResults(final MusicSearch.Result r) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+
+        ScrollView sv = new ScrollView(this);
+        sv.setVerticalFadingEdgeEnabled(false);
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        sv.addView(list);
+        box.addView(sv, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(340)));
+
+        final android.app.Dialog[] holder = new android.app.Dialog[1];
+
+        for (final MusicSearch.Track t : r.tracks) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(12), dp(10), dp(12), dp(10));
+
+            LinearLayout texts = new LinearLayout(this);
+            texts.setOrientation(LinearLayout.VERTICAL);
+            TextView name = UiConfig.text(this, t.name, 13f, MiuixTheme.onSurface());
+            name.setSingleLine(true);
+            name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            TextView sub = UiConfig.text(this,
+                    t.artist + (t.duration > 0 ? " · " + MusicSearch.fmtDuration(t.duration) : ""),
+                    10.5f, MiuixTheme.onSurfaceVariant());
+            sub.setSingleLine(true);
+            texts.addView(name);
+            texts.addView(sub);
+            row.addView(texts, new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+            TextView dl = UiConfig.button(this, "下载", false);
+            dl.setSingleLine(true);
+            dl.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f);
+            dl.setPadding(dp(2), 0, dp(2), 0);
+            LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(58), dp(32));
+            dlp.leftMargin = dp(8);
+            dl.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    downloadTrack(t);
+                }
+            });
+            row.addView(dl, dlp);
+            list.addView(row);
+        }
+
+        holder[0] = MiuixWindow.builder(this)
+                .title("搜索结果（" + r.tracks.size() + "）")
+                .content(box)
+                .scrollable(false)
+                .negative("关闭", null)
+                .show();
+    }
+
+    /** 下载一首歌到 /sdcard/Download/音乐/。 */
+    private void downloadTrack(final MusicSearch.Track t) {
+        final TextView status = new TextView(this);
+        status.setText("正在下载 " + t.name + " …");
+        status.setTextSize(12.5f);
+        status.setTextColor(MiuixTheme.onSurface());
+        final android.widget.ProgressBar bar = new android.widget.ProgressBar(this, null,
+                android.R.attr.progressBarStyleHorizontal);
+        bar.setMax(1000);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(6));
+        bp.topMargin = dp(10);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.addView(status);
+        box.addView(bar, bp);
+
+        MiuixWindow.builder(this)
+                .title("下载音乐")
+                .content(box)
+                .scrollable(false)
+                .cancelable(false)
+                .negative("后台继续", null)
+                .show();
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String err = null;
+                java.io.File out = null;
+                try {
+                    java.io.File dir = new java.io.File("/sdcard/Download/音乐");
+                    if (!dir.exists() && !dir.mkdirs()) {
+                        throw new Exception("无法创建目录");
+                    }
+                    String safe = (t.artist + " - " + t.name)
+                            .replaceAll("[\\\\/:*?\"<>|\n\r]", "_");
+                    if (safe.length() > 80) {
+                        safe = safe.substring(0, 80);
+                    }
+                    out = new java.io.File(dir, safe + ".mp3");
+                    MultiDownloader.download(t.downloadUrl, out, 4,
+                            new MultiDownloader.Progress() {
+                                @Override
+                                public void onProgress(final long d, final long total) {
+                                    runOnUiThread(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            if (total > 0) {
+                                                bar.setProgress((int) (d * 1000 / total));
+                                                status.setText("已下载 "
+                                                        + (d / 1024) + " / "
+                                                        + (total / 1024) + " KB");
+                                            }
+                                        }
+                                    });
+                                }
+                            });
+                } catch (Throwable th) {
+                    err = th.getMessage();
+                }
+                final String fe = err;
+                final java.io.File fo = out;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (fe == null) {
+                            bar.setProgress(1000);
+                            status.setText("完成：\n" + (fo == null ? "" : fo.getAbsolutePath()));
+                            status.setTextColor(MiuixTheme.success());
+                            toast("下载完成");
+                        } else {
+                            status.setText("失败：" + fe);
+                            status.setTextColor(MiuixTheme.error());
+                        }
+                    }
+                });
+            }
+        }, "music-dl").start();
     }
 
     // ------------------------------------------------------------ 番茄小说下载
