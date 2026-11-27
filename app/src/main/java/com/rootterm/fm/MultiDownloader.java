@@ -21,6 +21,16 @@ public final class MultiDownloader {
         void onProgress(long done, long total);
     }
 
+    /** 当前下载使用的登录态（单次下载内有效）。 */
+    private static volatile String sCookie;
+    private static volatile String sReferer;
+
+    /** 设置后续下载使用的登录态（VIP 曲目 CDN 会校验）。传 null 清除。 */
+    public static void setAuth(String cookie, String referer) {
+        sCookie = (cookie == null || cookie.isEmpty()) ? null : cookie;
+        sReferer = (referer == null || referer.isEmpty()) ? null : referer;
+    }
+
     private static final int CONNECT_TIMEOUT = 15000;
     private static final int READ_TIMEOUT = 30000;
 
@@ -38,6 +48,17 @@ public final class MultiDownloader {
      */
     public static boolean download(String url, File out, int threads, Progress p)
             throws Exception {
+        return download(url, out, threads, p, null, null);
+    }
+
+    /**
+     * 带凭证下载。VIP 曲目的 CDN 会校验 Cookie/Referer，
+     * 不带上登录态就只能拿到 403 或错误页。
+     */
+    public static boolean download(String url, File out, int threads, Progress p,
+                                   String cookie, String referer) throws Exception {
+        sCookie = (cookie == null || cookie.isEmpty()) ? null : cookie;
+        sReferer = (referer == null || referer.isEmpty()) ? null : referer;
         int n = Math.max(1, Math.min(threads, 8));
 
         // 1) 探测：是否支持 Range，以及总大小
@@ -320,6 +341,12 @@ public final class MultiDownloader {
                 conn.setReadTimeout(READ_TIMEOUT);
                 conn.setInstanceFollowRedirects(false);
                 conn.setRequestProperty("User-Agent", "TFManager/" + AppVersion.NAME);
+            if (sReferer != null) {
+                conn.setRequestProperty("Referer", sReferer);
+            }
+            if (sCookie != null) {
+                conn.setRequestProperty("Cookie", sCookie);
+            }
                 if (range != null) {
                     conn.setRequestProperty("Range", range);
                 }

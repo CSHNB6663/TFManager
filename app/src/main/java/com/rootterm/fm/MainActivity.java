@@ -3367,6 +3367,7 @@ public class MainActivity extends Activity {
                             fail++;
                             continue;
                         }
+                        MultiDownloader.setAuth(musicCookie(t.source), MusicSearch.refererFor(t.source));
                         MultiDownloader.download(url, out, 4, null);
                         if (out.length() < 100 * 1024) {
                             out.delete();
@@ -3543,6 +3544,7 @@ public class MainActivity extends Activity {
                         safe = safe.substring(0, 80);
                     }
                     out = new java.io.File(dir, safe + ".mp3");
+                    MultiDownloader.setAuth(cookie, MusicSearch.refererFor(src));
                     MultiDownloader.download(url, out, 4, new MultiDownloader.Progress() {
                         @Override
                         public void onProgress(final long d, final long total) {

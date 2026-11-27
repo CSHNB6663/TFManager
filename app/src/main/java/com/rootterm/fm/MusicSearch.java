@@ -155,7 +155,17 @@ public final class MusicSearch {
         if (SRC_MIGU.equals(t.source)) {
             return resolveMigu(t.id, t.extra);
         }
-        // 网易云：外链会 302 到 CDN，交给下载器跟随
+        // 网易云：登录了就走带凭证的接口（VIP 曲目只有这条路给地址），
+        // 拿不到再退回公开外链（免费曲目可用）
+        if (cookie != null && !cookie.isEmpty()) {
+            try {
+                String vip = resolveNeteaseVip(t.id, cookie);
+                if (vip != null && !vip.isEmpty()) {
+                    return vip;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
         return "https://music.163.com/song/media/outer/url?id=" + t.id + ".mp3";
     }
 
@@ -191,6 +201,32 @@ public final class MusicSearch {
             sip = sip + "/";
         }
         return sip + purl;
+    }
+
+    /** 各平台下载时该带的 Referer，CDN 会校验。 */
+    public static String refererFor(String source) {
+        if (SRC_QQ.equals(source)) {
+            return "https://y.qq.com/";
+        }
+        if (SRC_MIGU.equals(source)) {
+            return "https://music.migu.cn/";
+        }
+        return "https://music.163.com/";
+    }
+
+    /** 网易云登录态取址：VIP 曲目用这个接口，免费曲目也可能直接返回地址。 */
+    private static String resolveNeteaseVip(String id, String cookie) throws Exception {
+        String body = httpGet("https://music.163.com/api/song/enhance/player/url"
+                + "?ids=%5B" + id + "%5D&br=320000", "https://music.163.com/", cookie);
+        int i = body.indexOf("\"url\"");
+        if (i < 0) {
+            return null;
+        }
+        String url = str(body.substring(i - 1), "url");
+        if (url == null || url.isEmpty() || "null".equals(url)) {
+            return null;
+        }
+        return url;
     }
 
     // ================================================================ 咪咕音乐
