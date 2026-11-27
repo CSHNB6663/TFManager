@@ -288,7 +288,12 @@ public class TerminalPanel extends LinearLayout {
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         TextView pick = UiConfig.button(ctx, "选择", false);
-        LinearLayout.LayoutParams p1 = new LinearLayout.LayoutParams(dp(48), dp(32));
+        pick.setSingleLine(true);
+        pick.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f);
+        pick.setGravity(android.view.Gravity.CENTER);
+        pick.setPadding(dp(2), 0, dp(2), 0);
+        pick.setIncludeFontPadding(false);
+        LinearLayout.LayoutParams p1 = new LinearLayout.LayoutParams(dp(58), dp(34));
         p1.leftMargin = dp(6);
         bar.addView(pick, p1);
         pick.setOnClickListener(new View.OnClickListener() {
@@ -302,13 +307,19 @@ public class TerminalPanel extends LinearLayout {
                                 if (shPathView != null) {
                                     shPathView.setText(f.getAbsolutePath());
                                 }
+                                ShFiles.remember(ctx, f.getAbsolutePath());
                             }
                         });
             }
         });
 
         TextView run = UiConfig.button(ctx, "运行", true);
-        LinearLayout.LayoutParams p2 = new LinearLayout.LayoutParams(dp(52), dp(32));
+        run.setSingleLine(true);
+        run.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f);
+        run.setGravity(android.view.Gravity.CENTER);
+        run.setPadding(dp(2), 0, dp(2), 0);
+        run.setIncludeFontPadding(false);
+        LinearLayout.LayoutParams p2 = new LinearLayout.LayoutParams(dp(58), dp(34));
         p2.leftMargin = dp(6);
         bar.addView(run, p2);
         run.setOnClickListener(new View.OnClickListener() {
@@ -322,9 +333,159 @@ public class TerminalPanel extends LinearLayout {
             }
         });
 
+        // 自动填入上次使用的脚本
+        String last = ShFiles.last(ctx);
+        if (!last.isEmpty()) {
+            shPathView.setText(last);
+        }
+
+        // 点输入框 → 弹出「常用脚本」选择
+        shPathView.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                showShPicker();
+            }
+        });
+
         addView(bar, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         addView(dividerView());
+    }
+
+    /** 点输入框弹出「常用脚本」列表（最近使用 + 扫描结果）。 */
+    private void showShPicker() {
+        new Thread(new Runnable() {
+            public void run() {
+                final java.util.List<String> recents = ShFiles.recent(ctx);
+                final java.util.List<String> scanned = ShFiles.scan();
+                post(new Runnable() {
+                    public void run() {
+                        buildShPickerDialog(recents, scanned);
+                    }
+                });
+            }
+        }, "sh-scan").start();
+    }
+
+    private void buildShPickerDialog(final java.util.List<String> recents,
+                                     final java.util.List<String> scanned) {
+        LinearLayout box = new LinearLayout(ctx);
+        box.setOrientation(LinearLayout.VERTICAL);
+
+        ScrollView sv = new ScrollView(ctx);
+        sv.setVerticalFadingEdgeEnabled(false);
+        LinearLayout list = new LinearLayout(ctx);
+        list.setOrientation(LinearLayout.VERTICAL);
+        sv.addView(list);
+        box.addView(sv, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(300)));
+
+        final com.miuix.window.MiuixWindow.Builder builder =
+                com.miuix.window.MiuixWindow.builder(ctx);
+
+        // 最近使用
+        if (!recents.isEmpty()) {
+            list.addView(sectionTitle("最近使用"));
+            for (final String path : recents) {
+                list.addView(shRow(path, true));
+            }
+        }
+        // 扫描结果
+        java.util.List<String> rest = new java.util.ArrayList<String>();
+        for (String s : scanned) {
+            if (!recents.contains(s)) {
+                rest.add(s);
+            }
+        }
+        if (!rest.isEmpty()) {
+            list.addView(sectionTitle("扫描到的脚本"));
+            for (final String path : rest) {
+                list.addView(shRow(path, false));
+            }
+        }
+        if (recents.isEmpty() && rest.isEmpty()) {
+            TextView t = new TextView(ctx);
+            t.setText("还没有常用脚本。\n点「选择」浏览一次，之后就会出现在这里。");
+            t.setTextSize(12f);
+            t.setTextColor(UiConfig.TEXT_DIM);
+            t.setPadding(dp(12), dp(14), dp(12), dp(14));
+            t.setLineSpacing(dp(2), 1f);
+            list.addView(t);
+        }
+
+        shPickerDialog = builder.title("常用脚本")
+                .content(box)
+                .scrollable(false)
+                .neutral("手动输入", new com.miuix.window.MiuixWindow.OnAction() {
+                    public void onClick(android.app.Dialog d) {
+                        if (shPathView != null) {
+                            shPathView.requestFocus();
+                            showKeyboard();
+                        }
+                    }
+                })
+                .negative("取消", null)
+                .show();
+    }
+
+    private TextView sectionTitle(String text) {
+        TextView t = new TextView(ctx);
+        t.setText(text);
+        t.setTextSize(11f);
+        t.setTextColor(UiConfig.TEXT_DIM);
+        t.setPadding(dp(12), dp(10), dp(12), dp(4));
+        return t;
+    }
+
+    private View shRow(final String path, boolean recent) {
+        LinearLayout row = new LinearLayout(ctx);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(12), dp(10), dp(12), dp(10));
+        row.setClickable(true);
+
+        TextView name = new TextView(ctx);
+        String file = path.substring(path.lastIndexOf('/') + 1);
+        name.setText((recent ? "★ " : "▸ ") + file);
+        name.setTextSize(13f);
+        name.setTextColor(UiConfig.TEXT);
+        name.setSingleLine(true);
+        name.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+        row.addView(name, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView dir = new TextView(ctx);
+        String d = path.substring(0, Math.max(0, path.lastIndexOf('/')));
+        dir.setText(d);
+        dir.setTextSize(9.5f);
+        dir.setTextColor(UiConfig.TEXT_DIM);
+        dir.setSingleLine(true);
+        dir.setEllipsize(android.text.TextUtils.TruncateAt.START);
+        dir.setMaxWidth(dp(120));
+        row.addView(dir);
+
+        row.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                if (shPathView != null) {
+                    shPathView.setText(path);
+                }
+                ShFiles.remember(ctx, path);
+                dismissShPicker();
+            }
+        });
+        return row;
+    }
+
+    /** 关闭当前弹窗（记录在字段上）。 */
+    private android.app.Dialog shPickerDialog;
+
+    private void dismissShPicker() {
+        if (shPickerDialog != null) {
+            try {
+                shPickerDialog.dismiss();
+            } catch (Throwable ignored) {
+            }
+            shPickerDialog = null;
+        }
     }
 
     private View dividerView() {
@@ -338,6 +499,7 @@ public class TerminalPanel extends LinearLayout {
     /** 运行指定 .sh 文件（自动进交互模式）。 */
     private void runShFile(String path) {
         AppLog.log("SH", "quick-run: " + path);
+        ShFiles.remember(ctx, path);
         String dir = "/";
         int slash = path.lastIndexOf('/');
         if (slash > 0) {
