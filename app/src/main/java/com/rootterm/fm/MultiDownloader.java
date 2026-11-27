@@ -57,6 +57,10 @@ public final class MultiDownloader {
             } else {
                 throw new Exception("HTTP " + code);
             }
+            String ct = probe.getContentType();
+            if (isTextual(ct)) {
+                throw new Exception("该地址返回的是网页/错误信息，不是音频（多半没有版权或需要会员）：" + shortType(ct));
+            }
         } finally {
             try {
                 probe.disconnect();
@@ -70,7 +74,9 @@ public final class MultiDownloader {
 
         // 2) 不支持 Range 或文件太小 → 单线程
         if (!rangeOk || total < 2 * 1024 * 1024 || n == 1) {
-            return single(url, out, p);
+            boolean okSingle = single(url, out, p);
+            verifyAudioOrThrow(out);
+            return okSingle;
         }
 
         // 3) 分段并发
@@ -138,6 +144,7 @@ public final class MultiDownloader {
         if (p != null) {
             p.onProgress(total, total);
         }
+        verifyAudioOrThrow(out);
         AppLog.log("DL", "多线程完成 " + n + " 线程 · " + total + " 字节");
         return true;
     }
@@ -234,6 +241,72 @@ public final class MultiDownloader {
     }
 
     // ---------------------------------------------------------------- 工具
+
+    /** 这些 Content-Type 说明拿到的是网页/接口报文，不是音频。 */
+    private static boolean isTextual(String ct) {
+        if (ct == null) {
+            return false;
+        }
+        String t = ct.toLowerCase();
+        return t.startsWith("text/") || t.contains("html") || t.contains("json")
+                || t.contains("xml") || t.contains("javascript");
+    }
+
+    private static String shortType(String ct) {
+        if (ct == null) {
+            return "未知类型";
+        }
+        int i = ct.indexOf(';');
+        return i > 0 ? ct.substring(0, i).trim() : ct.trim();
+    }
+
+    /**
+     * 下完再验一遍文件头：真正的音频要么有 ID3/FLAC/Ogg 标记，要么是 MPEG 帧同步。
+     * 不是音频就删掉，别把网页存成 .mp3 留在用户目录里。
+     */
+    private static void verifyAudioOrThrow(File f) throws Exception {
+        if (f == null || !f.exists()) {
+            throw new Exception("下载失败：文件不存在");
+        }
+        long len = f.length();
+        if (len < 4096) {
+            f.delete();
+            throw new Exception("下载内容过小（" + len + " 字节），不是完整音频");
+        }
+        byte[] head = new byte[12];
+        java.io.FileInputStream in = null;
+        int got;
+        try {
+            in = new java.io.FileInputStream(f);
+            got = in.read(head);
+        } finally {
+            if (in != null) {
+                try {
+                    in.close();
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+        if (got < 4) {
+            f.delete();
+            throw new Exception("下载内容无法识别");
+        }
+        boolean id3 = head[0] == 'I' && head[1] == 'D' && head[2] == '3';
+        boolean ftyp = head[4] == 'f' && head[5] == 't' && head[6] == 'y' && head[7] == 'p';
+        boolean flac = head[0] == 'f' && head[1] == 'L' && head[2] == 'a' && head[3] == 'C';
+        boolean ogg = head[0] == 'O' && head[1] == 'g' && head[2] == 'g' && head[3] == 'S';
+        boolean mpeg = (head[0] & 0xFF) == 0xFF && (head[1] & 0xE0) == 0xE0;
+        boolean riff = head[0] == 'R' && head[1] == 'I' && head[2] == 'F' && head[3] == 'F';
+        boolean html = head[0] == '<' || (head[0] == 0xEF && head[1] == 0xBB && head[2] == 0xBF);
+        if (id3 || ftyp || flac || ogg || mpeg || riff) {
+            return;
+        }
+        f.delete();
+        if (html) {
+            throw new Exception("下载到的是一段网页（HTML），不是音频：该曲目可能没有版权或需要会员");
+        }
+        throw new Exception("下载内容不是可识别的音频格式，已删除");
+    }
 
     /** 打开连接，手动跟随重定向（保留 Range 头；http 优先升级为 https）。 */
     private static HttpURLConnection open(String url, String range) throws Exception {
