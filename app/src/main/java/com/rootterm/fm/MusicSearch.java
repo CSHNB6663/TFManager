@@ -22,6 +22,7 @@ public final class MusicSearch {
 
     public static final String SRC_NETEASE = "netease";
     public static final String SRC_QQ = "qq";
+    public static final String SRC_MIGU = "migu";
 
     private static final String UA =
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 "
@@ -34,6 +35,7 @@ public final class MusicSearch {
         public String id = "";       // 网易云 song id / QQ songmid
         public String name = "";
         public String artist = "";
+        public String extra = "";    // 咪咕 contentId
         public int duration;         // 秒
     }
 
@@ -59,6 +61,9 @@ public final class MusicSearch {
         try {
             if (SRC_QQ.equals(source)) {
                 return searchQQ(keyword.trim());
+            }
+            if (SRC_MIGU.equals(source)) {
+                return searchMigu(keyword.trim());
             }
             return searchNetease(keyword.trim());
         } catch (Throwable t) {
@@ -147,6 +152,9 @@ public final class MusicSearch {
         if (SRC_QQ.equals(t.source)) {
             return resolveQQ(t.id, cookie, uin);
         }
+        if (SRC_MIGU.equals(t.source)) {
+            return resolveMigu(t.id, t.extra);
+        }
         // 网易云：外链会 302 到 CDN，交给下载器跟随
         return "https://music.163.com/song/media/outer/url?id=" + t.id + ".mp3";
     }
@@ -183,6 +191,140 @@ public final class MusicSearch {
             sip = sip + "/";
         }
         return sip + purl;
+    }
+
+    // ================================================================ 咪咕音乐
+
+    /**
+     * 咪咕搜索。免登录，返回 songResultData.result 数组。
+     *
+     * <p>注意：周杰伦等付费曲库在咪咕是 VIP 曲目，取址接口会返回
+     * 「暂不提供试听地址」；非 VIP 曲目（含部分 Live/现场版）可以直接拿到
+     * freetyst.nf.migu.cn 的 mp3 直链。</p>
+     */
+    private static Result searchMigu(String kw) throws Exception {
+        Result r = new Result();
+        String sw = URLEncoder.encode("{\"song\":1,\"album\":0,\"singer\":0,\"tagSong\":0,"
+                + "\"mvSong\":0,\"bestShow\":1,\"songlist\":0}", "UTF-8");
+        String url = "https://app.c.nf.migu.cn/MIGUM2.0/v1.0/content/search_all.do"
+                + "?ua=Android_migu&version=5.0&channel=014000D&pageNo=1&pageSize=25"
+                + "&text=" + URLEncoder.encode(kw, "UTF-8")
+                + "&searchSwitch=" + sw;
+        String body = httpGet(url, "https://music.migu.cn/", null);
+        int i = body.indexOf("\"result\"");
+        if (i < 0) {
+            r.error = "咪咕未返回歌曲";
+            return r;
+        }
+        int arrStart = body.indexOf('[', i);
+        int arrEnd = matchBracket(body, arrStart);
+        if (arrStart < 0 || arrEnd < 0) {
+            r.error = "解析失败";
+            return r;
+        }
+        for (String obj : splitObjects(body, arrStart + 1, arrEnd)) {
+            Track t = new Track();
+            t.source = SRC_MIGU;
+            t.id = str(obj, "copyrightId");
+            t.extra = str(obj, "contentId");
+            t.name = str(obj, "name");
+            t.artist = miguSingers(obj);
+            t.duration = miguDuration(obj);
+            if (!t.id.isEmpty() && !t.name.isEmpty()) {
+                r.tracks.add(t);
+            }
+        }
+        r.ok = true;
+        AppLog.log("MUSIC", "migu '" + kw + "' → " + r.tracks.size());
+        return r;
+    }
+
+    /** 咪咕：singers 数组里第一个 name。 */
+    private static String miguSingers(String obj) {
+        int i = obj.indexOf("\"singers\"");
+        if (i < 0) {
+            return "";
+        }
+        int a = obj.indexOf('[', i);
+        int b = matchBracket(obj, a);
+        if (a < 0 || b < 0) {
+            return "";
+        }
+        return str(obj.substring(a, b), "name");
+    }
+
+    /** 咪咕：length 字段是 "mm:ss"。 */
+    private static int miguDuration(String obj) {
+        String len = str(obj, "length");
+        if (len == null || len.isEmpty()) {
+            return 0;
+        }
+        int c = len.indexOf(':');
+        if (c <= 0) {
+            return 0;
+        }
+        try {
+            int m = Integer.parseInt(len.substring(0, c).trim());
+            int sec = Integer.parseInt(len.substring(c + 1).trim());
+            return m * 60 + sec;
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    /**
+     * 咪咕取播放地址：接口 302 跳到 freetyst.nf.migu.cn 的 mp3。
+     * 音质依次降级 LQ → PQ → HQ。
+     */
+    private static String resolveMigu(String copyrightId, String contentId) throws Exception {
+        if (copyrightId == null || copyrightId.isEmpty()
+                || contentId == null || contentId.isEmpty()) {
+            throw new Exception("咪咕曲目信息不完整");
+        }
+        String lastMsg = "";
+        for (String flag : new String[]{"LQ", "PQ", "HQ"}) {
+            String url = "https://app.c.nf.migu.cn/MIGUM2.0/v1.0/content/sub/listenSong.do"
+                    + "?toneFlag=" + flag
+                    + "&netType=00&userId=&ua=Android_migu&channel=014000D&version=5.0"
+                    + "&copyrightId=" + copyrightId
+                    + "&contentId=" + contentId;
+            try {
+                return httpRedirect(url, "https://music.migu.cn/");
+            } catch (Exception e) {
+                lastMsg = e.getMessage();
+            }
+        }
+        throw new Exception(lastMsg.isEmpty() ? "咪咕未提供该曲目音源" : lastMsg);
+    }
+
+    /** 只取一次跳转的目标地址；不跳转时把接口返回的提示信息抛出来。 */
+    private static String httpRedirect(String url, String referer) throws Exception {
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setConnectTimeout(TIMEOUT);
+            conn.setReadTimeout(TIMEOUT);
+            conn.setInstanceFollowRedirects(false);
+            conn.setRequestProperty("User-Agent", UA);
+            if (referer != null) {
+                conn.setRequestProperty("Referer", referer);
+            }
+            int code = conn.getResponseCode();
+            if (code >= 300 && code < 400) {
+                String loc = conn.getHeaderField("Location");
+                if (loc == null || loc.isEmpty()) {
+                    throw new Exception("跳转缺少地址");
+                }
+                return loc;
+            }
+            String body = readAll(conn.getInputStream());
+            String msg = str(body, "info");
+            throw new Exception(msg.isEmpty() ? "咪咕未返回播放地址" : msg);
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
     }
 
     // ================================================================ 网络

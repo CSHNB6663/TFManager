@@ -1830,7 +1830,7 @@ public class MainActivity extends Activity {
                 pickBgm();
             }
         });
-        bgm.clickRow("在线音乐下载", "网易云 / QQ音乐 · 搜索并下载", "",
+        bgm.clickRow("在线音乐下载", "网易云 / QQ音乐 / 咪咕 · 搜索并下载", "",
                 new MiuixPreference.OnClick() {
                     @Override
                     public void onClick(View v) {
@@ -2810,18 +2810,27 @@ public class MainActivity extends Activity {
         styleInput(et);
 
         final TextView srcLabel = UiConfig.text(this,
-                "平台：" + (MusicSearch.SRC_QQ.equals(musicSource) ? "QQ音乐" : "网易云音乐"),
+                "平台：" + musicSourceName(musicSource),
                 11.5f, MiuixTheme.onSurfaceVariant());
 
         LinearLayout srcRow = new LinearLayout(this);
         srcRow.setOrientation(LinearLayout.HORIZONTAL);
         final TextView btnNe = UiConfig.button(this, "网易云", true);
         final TextView btnQQ = UiConfig.button(this, "QQ音乐", false);
+        final TextView btnMG = UiConfig.button(this, "咪咕", false);
         LinearLayout.LayoutParams l1 = new LinearLayout.LayoutParams(0, dp(34), 1f);
         LinearLayout.LayoutParams l2 = new LinearLayout.LayoutParams(0, dp(34), 1f);
+        LinearLayout.LayoutParams l3 = new LinearLayout.LayoutParams(0, dp(34), 1f);
         l2.leftMargin = dp(8);
+        l3.leftMargin = dp(8);
         srcRow.addView(btnNe, l1);
         srcRow.addView(btnQQ, l2);
+        srcRow.addView(btnMG, l3);
+        if (MusicSearch.SRC_QQ.equals(musicSource)) {
+            paintSrcButtons(btnQQ, btnNe, btnMG);
+        } else if (MusicSearch.SRC_MIGU.equals(musicSource)) {
+            paintSrcButtons(btnMG, btnNe, btnQQ);
+        }
 
         final TextView loginHint = UiConfig.text(this, "", 10.5f, MiuixTheme.onSurfaceVariant());
 
@@ -2845,6 +2854,14 @@ public class MainActivity extends Activity {
         plBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (!MusicSearch.SRC_NETEASE.equals(musicSource)) {
+                    MiuixWindow.builder(MainActivity.this)
+                            .title("歌单")
+                            .message("歌单解析目前只支持网易云音乐，咪咕/QQ 请直接搜索歌名或歌手。")
+                            .positive("知道了", null)
+                            .show();
+                    return;
+                }
                 showPlaylistInput();
             }
         });
@@ -2857,10 +2874,7 @@ public class MainActivity extends Activity {
             public void onClick(View v) {
                 musicSource = MusicSearch.SRC_NETEASE;
                 srcLabel.setText("平台：网易云音乐");
-                btnNe.setBackgroundColor(ThemeColors.ACCENT);
-                btnQQ.setBackgroundColor(0xFFE8EEF8);
-                btnNe.setTextColor(0xFFFFFFFF);
-                btnQQ.setTextColor(0xFF33507A);
+                paintSrcButtons(btnNe, btnQQ, btnMG);
                 updateLoginHint(loginHint);
             }
         });
@@ -2869,10 +2883,16 @@ public class MainActivity extends Activity {
             public void onClick(View v) {
                 musicSource = MusicSearch.SRC_QQ;
                 srcLabel.setText("平台：QQ音乐");
-                btnQQ.setBackgroundColor(ThemeColors.ACCENT);
-                btnNe.setBackgroundColor(0xFFE8EEF8);
-                btnQQ.setTextColor(0xFFFFFFFF);
-                btnNe.setTextColor(0xFF33507A);
+                paintSrcButtons(btnQQ, btnNe, btnMG);
+                updateLoginHint(loginHint);
+            }
+        });
+        btnMG.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                musicSource = MusicSearch.SRC_MIGU;
+                srcLabel.setText("平台：咪咕音乐");
+                paintSrcButtons(btnMG, btnNe, btnQQ);
                 updateLoginHint(loginHint);
             }
         });
@@ -2905,10 +2925,33 @@ public class MainActivity extends Activity {
 
     private void updateLoginHint(TextView t) {
         String c = musicCookie(musicSource);
-        if (MusicSearch.SRC_QQ.equals(musicSource)) {
+        if (MusicSearch.SRC_MIGU.equals(musicSource)) {
+            t.setText("咪咕：免登录 · 免费曲目可直接下载，VIP 曲目会提示不可用");
+        } else if (MusicSearch.SRC_QQ.equals(musicSource)) {
             t.setText(c.isEmpty() ? "QQ音乐下载需登录（点「登录」）" : "QQ音乐：已登录");
         } else {
             t.setText(c.isEmpty() ? "网易云：未登录（免费曲目可直接下载）" : "网易云：已登录");
+        }
+    }
+
+    /** 平台显示名。 */
+    private static String musicSourceName(String src) {
+        if (MusicSearch.SRC_QQ.equals(src)) {
+            return "QQ音乐";
+        }
+        if (MusicSearch.SRC_MIGU.equals(src)) {
+            return "咪咕音乐";
+        }
+        return "网易云音乐";
+    }
+
+    /** 选中态上色：active 高亮，其余恢复浅色。 */
+    private void paintSrcButtons(TextView active, TextView... others) {
+        active.setBackgroundColor(ThemeColors.ACCENT);
+        active.setTextColor(0xFFFFFFFF);
+        for (TextView o : others) {
+            o.setBackgroundColor(0xFFE8EEF8);
+            o.setTextColor(0xFF33507A);
         }
     }
 
