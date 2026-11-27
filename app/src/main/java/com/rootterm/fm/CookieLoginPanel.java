@@ -83,6 +83,24 @@ public class CookieLoginPanel extends LinearLayout {
         head.addView(title, new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
+        TextView reload = new TextView(c);
+        reload.setText("刷新");
+        reload.setTextSize(13f);
+        reload.setTextColor(0xFF33507A);
+        reload.setPadding(UiConfig.dp(c, 10), UiConfig.dp(c, 4),
+                UiConfig.dp(c, 10), UiConfig.dp(c, 4));
+        reload.setClickable(true);
+        reload.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                try {
+                    web.reload();
+                } catch (Throwable ignored) {
+                }
+            }
+        });
+        head.addView(reload);
+
         TextView ok = new TextView(c);
         ok.setText("完成");
         ok.setTextSize(14f);
@@ -107,6 +125,18 @@ public class CookieLoginPanel extends LinearLayout {
         addView(head, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
+        TextView hint = new TextView(c);
+        hint.setText("提示：优先用「扫码登录」。若点「获取验证码」没反应，"
+                + "通常是滑块验证在 WebView 里拖不动，点右上「刷新」重试，或改用扫码/账号密码登录。");
+        hint.setTextSize(10.5f);
+        hint.setTextColor(0xFF8A6D3B);
+        hint.setBackgroundColor(0xFFFFF8E1);
+        hint.setPadding(UiConfig.dp(c, 10), UiConfig.dp(c, 7),
+                UiConfig.dp(c, 10), UiConfig.dp(c, 7));
+        hint.setLineSpacing(UiConfig.dp(c, 1.5f), 1f);
+        addView(hint, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
         bar = new ProgressBar(c, null, android.R.attr.progressBarStyleHorizontal);
         bar.setMax(100);
         bar.setVisibility(View.GONE);
@@ -120,6 +150,9 @@ public class CookieLoginPanel extends LinearLayout {
         s.setDatabaseEnabled(true);
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
+        s.setJavaScriptCanOpenWindowsAutomatically(true);
+        s.setSupportMultipleWindows(false);
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         s.setBuiltInZoomControls(true);
         s.setDisplayZoomControls(false);
         s.setSupportZoom(true);

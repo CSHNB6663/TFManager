@@ -47,6 +47,8 @@ public final class FanqieDownloader {
         public String id = "";
         public String title = "";
         public String text = "";
+        /** 章节内的插图地址。 */
+        public final java.util.List<String> images = new java.util.ArrayList<String>();
     }
 
     /** 进度回调（后台线程调用）。 */
@@ -242,6 +244,19 @@ public final class FanqieDownloader {
         }
         if (content != null) {
             String raw = jsonUnescape(content);
+            // 先抽出插图地址，再剥标签
+            try {
+                java.util.regex.Matcher m = java.util.regex.Pattern
+                        .compile("(?i)<img[^>]+src=[\"']([^\"']+)[\"']")
+                        .matcher(raw);
+                while (m.find()) {
+                    String u = m.group(1);
+                    if (u != null && u.startsWith("http") && !c.images.contains(u)) {
+                        c.images.add(u);
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
             c.text = FanqieFontMap.fix(stripHtml(raw));   // 还原字体混淆字符
         }
         if (c.text == null) {
@@ -293,6 +308,8 @@ public final class FanqieDownloader {
                 preLocked++;
             }
         }
+        sb.append("保存目录：/sdcard/Download/小说/").append(safeName(book.title)).append("\n");
+        sb.append("插图目录：images/（章节正文中的【插图】行对应图片）\n");
         if (preLocked > 0) {
             sb.append("其中 ").append(preLocked)
                     .append(" 章为「锁章」（番茄仅给试读片段），已标注未下载正文\n");
@@ -301,6 +318,18 @@ public final class FanqieDownloader {
 
         int ok = 0;
         int lockedCount = 0;
+        int imgCount = 0;
+        // 小说目录：/sdcard/Download/小说/<书名>/
+        File novelRoot = new File("/sdcard/Download/小说");
+        if (!novelRoot.exists()) {
+            novelRoot.mkdirs();
+        }
+        File bookDir = new File(novelRoot, safeName(book.title));
+        if (!bookDir.exists()) {
+            bookDir.mkdirs();
+        }
+        File imgDir = new File(bookDir, "images");
+
         for (int i = 0; i < total; i++) {
             String cid = book.chapterIds.get(i);
             if (p != null) {
@@ -328,7 +357,33 @@ public final class FanqieDownloader {
                             .append("\n\n");
                     lockedCount++;
                 } else {
-                    sb.append(body).append("\n\n");
+                    sb.append(body);
+                    // 下载本章插图
+                    if (!c.images.isEmpty()) {
+                        if (!imgDir.exists()) {
+                            imgDir.mkdirs();
+                        }
+                        int k = 0;
+                        for (String imgUrl : c.images) {
+                            k++;
+                            String ext = guessExt(imgUrl);
+                            String imgName = String.format(java.util.Locale.US,
+                                    "第%03d章_%02d%s", i + 1, k, ext);
+                            File dst = new File(imgDir, imgName);
+                            boolean got = false;
+                            try {
+                                got = downloadFile(imgUrl, dst);
+                            } catch (Throwable ignored) {
+                            }
+                            if (got) {
+                                sb.append("\n【插图】images/").append(imgName).append("\n");
+                                imgCount++;
+                            } else {
+                                sb.append("\n【插图（下载失败）】").append(imgUrl).append("\n");
+                            }
+                        }
+                    }
+                    sb.append("\n\n");
                     ok++;
                 }
             } catch (Throwable t) {
@@ -337,7 +392,7 @@ public final class FanqieDownloader {
             }
         }
 
-        File out = new File("/sdcard/Download", safeName(book.title) + ".txt");
+        File out = new File(bookDir, safeName(book.title) + ".txt");
         FileOutputStream fo = new FileOutputStream(out);
         try {
             fo.write(sb.toString().getBytes("UTF-8"));
@@ -349,7 +404,8 @@ public final class FanqieDownloader {
         }
         if (p != null) {
             p.onProgress(total, total, "完成：" + ok + " 章完整"
-                    + (lockedCount > 0 ? "，" + lockedCount + " 章锁定" : ""));
+                    + (lockedCount > 0 ? "，" + lockedCount + " 章锁定" : "")
+                    + (imgCount > 0 ? "，" + imgCount + " 张插图" : ""));
         }
         AppLog.log("FANQIE", "done ok=" + ok + " locked=" + lockedCount + " total=" + total);
         return out;
@@ -453,6 +509,67 @@ public final class FanqieDownloader {
     }
 
     /** 去掉 HTML 标签，保留段落换行。 */
+    /** 从 URL 猜扩展名。 */
+    private static String guessExt(String url) {
+        try {
+            String path = url.split("\\?")[0];
+            int dot = path.lastIndexOf('.');
+            if (dot > 0 && dot > path.length() - 6) {
+                String e = path.substring(dot).toLowerCase(java.util.Locale.US);
+                if (e.matches("\\.(jpg|jpeg|png|webp|gif|bmp)")) {
+                    return e;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return ".jpg";
+    }
+
+    /** 下载单个文件（图片）。 */
+    private static boolean downloadFile(String url, File dst) throws Exception {
+        java.net.HttpURLConnection conn = null;
+        java.io.InputStream in = null;
+        java.io.FileOutputStream fo = null;
+        try {
+            conn = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+            conn.setConnectTimeout(15000);
+            conn.setReadTimeout(25000);
+            conn.setRequestProperty("User-Agent",
+                    "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile");
+            conn.setRequestProperty("Referer", "https://fanqienovel.com/");
+            int code = conn.getResponseCode();
+            if (code < 200 || code >= 300) {
+                return false;
+            }
+            in = conn.getInputStream();
+            fo = new java.io.FileOutputStream(dst);
+            byte[] buf = new byte[16384];
+            int n;
+            long total = 0;
+            while ((n = in.read(buf)) > 0) {
+                fo.write(buf, 0, n);
+                total += n;
+            }
+            return total > 512;
+        } finally {
+            try {
+                if (fo != null) {
+                    fo.close();
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                if (in != null) {
+                    in.close();
+                }
+            } catch (Throwable ignored) {
+            }
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+    }
+
     private static String stripHtml(String html) {
         if (html == null) {
             return "";
