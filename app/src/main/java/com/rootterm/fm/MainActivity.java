@@ -436,6 +436,7 @@ public class MainActivity extends Activity {
 
         // 番茄登录浮层放最上层（不属于 SwipeBox，手势不被拦截）
         if (mFanqieCard != null) {
+            applyStatusBarPadding(mFanqieCard);
             root.addView(mFanqieCard, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         }
@@ -2756,6 +2757,42 @@ public class MainActivity extends Activity {
         }, "bgm-auto").start();
     }
 
+    /** 给整屏浮层顶部留出状态栏 + 刘海高度。 */
+    private void applyStatusBarPadding(final View v) {
+        // 先用资源高度兜底，立刻生效
+        int h = 0;
+        try {
+            int id = getResources().getIdentifier("status_bar_height", "dimen", "android");
+            if (id > 0) {
+                h = getResources().getDimensionPixelSize(id);
+            }
+        } catch (Throwable ignored) {
+        }
+        v.setPadding(0, h, 0, 0);
+
+        // 再按真实 insets 修正（含刘海/挖孔）
+        v.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+            @Override
+            public android.view.WindowInsets onApplyWindowInsets(View view,
+                                                                 android.view.WindowInsets insets) {
+                int top;
+                if (Build.VERSION.SDK_INT >= 30) {
+                    android.graphics.Insets i = insets.getInsets(
+                            android.view.WindowInsets.Type.statusBars()
+                                    | android.view.WindowInsets.Type.displayCutout());
+                    top = i.top;
+                } else {
+                    top = insets.getSystemWindowInsetTop();
+                }
+                if (view.getPaddingTop() != top) {
+                    view.setPadding(0, top, 0, view.getPaddingBottom());
+                }
+                return insets;
+            }
+        });
+        v.requestApplyInsets();
+    }
+
     // ------------------------------------------------------------ 在线音乐（网易云 / QQ音乐）
 
     /** 当前选中的平台（默认网易云）。 */
@@ -2871,10 +2908,12 @@ public class MainActivity extends Activity {
                 : "登录网易云音乐（电脑版）";
 
         final CookieLoginPanel panel = new CookieLoginPanel(this, url, title, true);
-        FrameLayout overlay = new FrameLayout(this);
+        final FrameLayout overlay = new FrameLayout(this);
         overlay.setBackgroundColor(0xFFFFFFFF);
         overlay.addView(panel, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        // 关键：让出状态栏，否则顶部的「刷新 / 完成」会被挡住
+        applyStatusBarPadding(overlay);
         final ViewGroup root = (ViewGroup) getWindow().getDecorView();
         root.addView(overlay, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
