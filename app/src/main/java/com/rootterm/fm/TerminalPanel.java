@@ -4,6 +4,8 @@ import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+
+import java.io.File;
 import android.content.DialogInterface;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -93,6 +95,8 @@ public class TerminalPanel extends LinearLayout {
 
     /** 当前工作目录，始终是绝对路径。 */
     private String cwd = "/";
+    /** 顶部快捷运行 .sh 的路径输入框。 */
+    private EditText shPathView;
 
     /** 命令历史（旧 -> 新）。 */
     private final ArrayList<String> history = new ArrayList<String>();
@@ -107,6 +111,7 @@ public class TerminalPanel extends LinearLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setBackgroundColor(UiConfig.BG);
 
+        buildShBar();        // 顶部：快捷运行 .sh 文件
         buildStatusBar();
         buildOutputArea();
         buildInputRow();
@@ -257,6 +262,105 @@ public class TerminalPanel extends LinearLayout {
     }
 
     // ================================================================ UI 搭建
+
+    /** 顶部「快捷运行 .sh 文件」输入条。 */
+    private void buildShBar() {
+        LinearLayout bar = new LinearLayout(ctx);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        bar.setBackgroundColor(UiConfig.SURFACE);
+        bar.setPadding(dp(8), dp(6), dp(8), dp(6));
+
+        shPathView = new EditText(ctx);
+        shPathView.setSingleLine(true);
+        shPathView.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f);
+        shPathView.setTextColor(UiConfig.TEXT);
+        shPathView.setHintTextColor(UiConfig.TEXT_DIM);
+        shPathView.setHint("输入 .sh 文件路径，或点「选择」");
+        shPathView.setTypeface(Typeface.MONOSPACE);
+        android.graphics.drawable.GradientDrawable bg =
+                new android.graphics.drawable.GradientDrawable();
+        bg.setColor(UiConfig.SURFACE_2);
+        bg.setCornerRadius(dp(14));
+        shPathView.setBackground(bg);
+        shPathView.setPadding(dp(10), dp(6), dp(10), dp(6));
+        bar.addView(shPathView, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView pick = UiConfig.button(ctx, "选择", false);
+        LinearLayout.LayoutParams p1 = new LinearLayout.LayoutParams(dp(48), dp(32));
+        p1.leftMargin = dp(6);
+        bar.addView(pick, p1);
+        pick.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                ImagePicker.show(ctx, "选择脚本", "/sdcard",
+                        new String[]{".sh", ".bash", ".txt"},
+                        "选择要运行的脚本（.sh）",
+                        new ImagePicker.OnPick() {
+                            @Override
+                            public void onPick(File f) {
+                                if (shPathView != null) {
+                                    shPathView.setText(f.getAbsolutePath());
+                                }
+                            }
+                        });
+            }
+        });
+
+        TextView run = UiConfig.button(ctx, "运行", true);
+        LinearLayout.LayoutParams p2 = new LinearLayout.LayoutParams(dp(52), dp(32));
+        p2.leftMargin = dp(6);
+        bar.addView(run, p2);
+        run.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                String path = shPathView == null ? "" : shPathView.getText().toString().trim();
+                if (path.isEmpty()) {
+                    printLine("[请输入脚本路径，或点「选择」]", UiConfig.WARN);
+                    return;
+                }
+                runShFile(path);
+            }
+        });
+
+        addView(bar, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        addView(dividerView());
+    }
+
+    private View dividerView() {
+        View v = new View(ctx);
+        v.setBackgroundColor(UiConfig.BORDER);
+        v.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(0.8f))));
+        return v;
+    }
+
+    /** 运行指定 .sh 文件（自动进交互模式）。 */
+    private void runShFile(String path) {
+        AppLog.log("SH", "quick-run: " + path);
+        String dir = "/";
+        int slash = path.lastIndexOf('/');
+        if (slash > 0) {
+            dir = path.substring(0, slash);
+        }
+        String cmd;
+        if (UiConfig.compatMode(ctx)) {
+            cmd = "cd " + Shell.quote(dir) + " && /system/bin/sh "
+                    + Shell.quote(path) + " 2>&1";
+        } else {
+            String bash = BashKit.ensure(ctx);
+            if (bash != null) {
+                cmd = "cd " + Shell.quote(dir) + " && LD_LIBRARY_PATH=/data/local/tmp/tfbash "
+                        + Shell.quote(bash) + " " + Shell.quote(path) + " 2>&1";
+            } else {
+                cmd = "cd " + Shell.quote(dir) + " && /system/bin/sh "
+                        + Shell.quote(path) + " 2>&1";
+            }
+        }
+        printLine(promptText() + cmd, UiConfig.ACCENT);
+        runShell(cmd);
+        showKeyboard();
+    }
 
     private void buildStatusBar() {
         statusBar = UiConfig.row(ctx);
