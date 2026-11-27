@@ -559,7 +559,7 @@ public class MainActivity extends Activity {
         FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         plp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
-        plp.bottomMargin = dp(12) + Math.max(mInsetBottom, dp(16));
+        plp.bottomMargin = Math.max(mInsetBottom, dp(14));
         mMiuixNav.setLayoutParams(plp);
 
         mNavPill = mMiuixNav;
@@ -595,7 +595,7 @@ public class MainActivity extends Activity {
         if (lp instanceof FrameLayout.LayoutParams) {
             FrameLayout.LayoutParams p = (FrameLayout.LayoutParams) lp;
             p.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
-            p.bottomMargin = dp(12) + Math.max(mInsetBottom, dp(16));
+            p.bottomMargin = Math.max(mInsetBottom, dp(14));
             mNavPill.setLayoutParams(p);
         }
     }

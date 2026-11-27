@@ -69,11 +69,13 @@ public class MiuixNavBar extends FrameLayout {
 
         // 胶囊本体：液态玻璃
         mPill = MiuixGlass.pill(c);
-        mPill.radiusDp(120);          // 超过高度一半 → 自动收敛为完美胶囊
-        mPill.paddingDp(10, 7, 10, 7);
-        // 磨砂观感：高不透明白 + 轻棱边 + 关闭镜面反光
-        mPill.tint(0xF0FFFFFF, 0xE6FFFFFF);
-        mPill.rim(0x40FFFFFF, 0x12000000);
+        mPill.capsule(true);          // 真胶囊：两端是正半圆，不是超椭圆的方圆形
+        mPill.radiusDp(120);          // 半径超过高度一半时按高度一半收敛
+        mPill.paddingDp(12, 8, 12, 8);
+        // 浅色页面上要能看出是一颗悬浮胶囊：
+        //   半透明白底 + 下缘可见的暗棱边 + 投影，否则白底白条等于隐形。
+        mPill.tint(0xF2FFFFFF, 0xE0FFFFFF);
+        mPill.rim(0xB3FFFFFF, 0x33000000);
         mPill.specular(false);
         FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(
                 LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
@@ -86,10 +88,11 @@ public class MiuixNavBar extends FrameLayout {
 
         // 选中指示块：一块独立的液态玻璃（连续圆角）
         mIndicator = MiuixGlass.pill(c);
+        mIndicator.capsule(true);     // 选中块同样用真胶囊
         mIndicator.specular(true);
         MiuixMaterial im = MiuixMaterial.preset(c, MiuixMaterial.Preset.CLEAR);
-        im.tintTop = MiuixMaterial.withAlpha(mIndicatorColor, 0xE6);
-        im.tintBottom = MiuixMaterial.withAlpha(mIndicatorColor, 0xC8);
+        im.tintTop = MiuixMaterial.withAlpha(mIndicatorColor, 0xFF);
+        im.tintBottom = MiuixMaterial.withAlpha(mIndicatorColor, 0xF0);
         im.rimLight = 0xCCFFFFFF;
         im.rimDark = 0x1A3482FF;
         im.specular = 0x4DFFFFFF;
@@ -132,8 +135,8 @@ public class MiuixNavBar extends FrameLayout {
         mActiveColor = active;
         mInactiveColor = inactive;
         MiuixMaterial im = mIndicator.material();
-        im.tintTop = MiuixMaterial.withAlpha(indicator, 0xE6);
-        im.tintBottom = MiuixMaterial.withAlpha(indicator, 0xC8);
+        im.tintTop = MiuixMaterial.withAlpha(indicator, 0xFF);
+        im.tintBottom = MiuixMaterial.withAlpha(indicator, 0xF0);
         mIndicator.material(im);
         styleAll();
         return this;
@@ -155,7 +158,7 @@ public class MiuixNavBar extends FrameLayout {
         item.setGravity(Gravity.CENTER);
         item.setPadding(MiuixTheme.dp(getContext(), 9), MiuixTheme.dp(getContext(), 6),
                 MiuixTheme.dp(getContext(), 9), MiuixTheme.dp(getContext(), 6));
-        item.setMinimumWidth(MiuixTheme.dp(getContext(), 54));
+        item.setMinimumWidth(MiuixTheme.dp(getContext(), 58));
 
         ImageView icon = new ImageView(getContext());
         if (iconRes != 0) {
@@ -166,7 +169,7 @@ public class MiuixNavBar extends FrameLayout {
 
         TextView label = new TextView(getContext());
         label.setText(title);
-        label.setTextSize(10.5f);
+        label.setTextSize(11f);
         label.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
                 LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);

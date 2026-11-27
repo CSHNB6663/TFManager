@@ -97,3 +97,14 @@ scripts/publish.sh                   # 一键创建仓库 + push + 发布 Releas
 因此各模块按「同名、同职责」复刻视觉与 API 语义，而非引入其 Kotlin 代码。
 所有卡片（首页、设置、文件列表、分区、Fastboot、ADB）、底栏、关于页、
 弹窗与按钮统一使用 `miuix-glass`；玻璃材质参数集中在 `miuix-material`。
+
+## 发布流程（每次改版本必做）
+
+发版不是「本地出个 APK」就完了，必须三步都做完：
+
+1. **提交并推送**：`git add -A && git commit && git push origin master`
+2. **打 GitHub Release**：tag 用 `v<版本名>`（如 `v6.4.7`），标题写清版本
+3. **上传 APK 附件**：把 `dist/RootTerm-<版本>.apk` 作为 release asset 传上去
+
+应用内更新走的是 `api.github.com/repos/CSHNB6663/TFManager/releases/latest`，
+只在本地产出的包没有上传，用户端就收不到更新。release notes 里写清本次改了什么。

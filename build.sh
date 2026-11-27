@@ -27,7 +27,7 @@ JAR36="$SDK/android.jar"      # API 36：javac / aapt2 用
 JAR34="$SDK/android34.jar"    # API 34：aapt1 回退用
 OUT="tools/out"
 DIST="dist"
-APK="$DIST/RootTerm-6.4.3.apk"
+APK=""   # 留空则按版本号自动命名
 FORCE_AAPT1=""
 OBFUSCATE=1
 
@@ -85,6 +85,7 @@ sed -e "s/android:versionCode=\"[0-9]*\"/android:versionCode=\"$VCODE\"/" \
     app/src/main/AndroidManifest.xml > "$OUT/AndroidManifest.xml"
 MANIFEST="$OUT/AndroidManifest.xml"
 echo "== 版本: $VNAME ($VCODE)（来自 AppVersion.java）"
+[ -n "$APK" ] || APK="$DIST/RootTerm-$VNAME.apk"
 
 # ---- 证书指纹（用于运行时签名校验，防重打包）----
 CERT_SHA256="$(keytool -exportcert -keystore "$KS" -storepass "$KS_PASS" \

@@ -65,6 +65,49 @@ public class MiuixGlass extends FrameLayout {
         updateShaders();
     }
 
+    // ---------------------------------------------------------------- 形状
+
+    private boolean mCapsule;
+
+    /**
+     * 真胶囊形状：两端为正半圆（圆角矩形，半径 = 高度一半）。
+     *
+     * <p>默认的超椭圆圆角在半径拉满时，两端是「连续曲率的方圆形」，
+     * 不是真半圆；要药丸观感就打开这个。</p>
+     */
+    public MiuixGlass capsule(boolean on) {
+        if (mCapsule == on) {
+            return this;
+        }
+        mCapsule = on;
+        mPath = null;
+        applyClip();
+        invalidate();
+        return this;
+    }
+
+    public boolean isCapsule() {
+        return mCapsule;
+    }
+
+    /** 按当前形状设置生成路径。 */
+    private Path buildPath(int w, int h) {
+        return buildPath(w, h, mRadiusPx);
+    }
+
+    private Path buildPath(float w, float h, float radiusPx) {
+        if (w <= 0 || h <= 0) {
+            return new Path();
+        }
+        if (mCapsule) {
+            Path p = new Path();
+            float r = Math.min(radiusPx, h / 2f);
+            p.addRoundRect(new android.graphics.RectF(0, 0, w, h), r, r, Path.Direction.CW);
+            return p;
+        }
+        return Squircle.path(w, h, radiusPx);
+    }
+
     // ---------------------------------------------------------------- 材质
 
     /** 切换到预置材质（清透 / 液态 / 强调）。会覆盖之前手动 tint/rim 设置。 */
@@ -232,7 +275,7 @@ public class MiuixGlass extends FrameLayout {
     @Override
     protected void onSizeChanged(int w, int h, int ow, int oh) {
         super.onSizeChanged(w, h, ow, oh);
-        mPath = Squircle.path(w, h, mRadiusPx);
+        mPath = buildPath(w, h);
         updateShaders();
         invalidateOutline();
     }
@@ -257,7 +300,7 @@ public class MiuixGlass extends FrameLayout {
         int w = getWidth();
         int h = getHeight();
         if (mPath == null) {
-            mPath = Squircle.path(w, h, mRadiusPx);
+            mPath = buildPath(w, h);
         }
 
         maybeCaptureBackdrop();
@@ -304,8 +347,8 @@ public class MiuixGlass extends FrameLayout {
                     mMaterial.rimLight, mMaterial.rimDark, Shader.TileMode.CLAMP));
             canvas.save();
             canvas.translate(sw / 2f, sw / 2f);
-            canvas.drawPath(Squircle.path(w - sw, h - sw,
-                    Math.max(1f, mRadiusPx - sw / 2f)), mRimPaint);
+            canvas.drawPath(buildPath(w - sw, h - sw, Math.max(1f, mRadiusPx - sw / 2f)),
+                    mRimPaint);
             canvas.restore();
         }
 
@@ -336,7 +379,19 @@ public class MiuixGlass extends FrameLayout {
     }
 
     private void applyClip() {
-        Squircle.clipChildren(this, mRadiusPx);
+        if (!mCapsule) {
+            Squircle.clipChildren(this, mRadiusPx);
+            return;
+        }
+        setClipToOutline(true);
+        setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override
+            public void getOutline(View v, android.graphics.Outline outline) {
+                float r = Math.min(mRadiusPx, v.getHeight() / 2f);
+                outline.setRoundRect(0, 0, v.getWidth(), v.getHeight(), r);
+            }
+        });
+        invalidateOutline();
     }
 
     // ---------------------------------------------------------------- 便捷构造
