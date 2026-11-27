@@ -7,121 +7,204 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
- * 免费音乐搜索/下载（Jamendo，CC 授权曲库）。
+ * 在线音乐搜索/下载（网易云音乐 + QQ音乐），走「网页接口 + 登录 Cookie」的方式。
  *
- * <p>Jamendo 需要免费申请 client_id（devportal.jamendo.com），本类只用用户自己的 key，
- * 不内置任何第三方密钥。所有曲目均为 Creative Commons 授权，可合法下载。</p>
+ * <p>搜索：两家都有公开的网页搜索接口，无需登录。</p>
+ * <p>下载：</p>
+ * <ul>
+ *   <li>网易云 —— {@code /song/media/outer/url?id=X.mp3} 会 302 到 CDN 的 MP3，直接可下</li>
+ *   <li>QQ音乐 —— 需要 vkey，匿名拿不到 purl，必须带登录 Cookie</li>
+ * </ul>
  */
 public final class MusicSearch {
 
+    public static final String SRC_NETEASE = "netease";
+    public static final String SRC_QQ = "qq";
+
+    private static final String UA =
+            "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 "
+                    + "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+    private static final int TIMEOUT = 15000;
+
     /** 一首歌。 */
     public static final class Track {
+        public String source = SRC_NETEASE;
+        public String id = "";       // 网易云 song id / QQ songmid
         public String name = "";
         public String artist = "";
-        public int duration;          // 秒
-        public String downloadUrl = "";
-        public String streamUrl = "";
-        public String license = "";
+        public int duration;         // 秒
     }
 
-    /** 结果。 */
+    /** 搜索结果。 */
     public static final class Result {
         public boolean ok;
         public String error = "";
         public final List<Track> tracks = new ArrayList<Track>();
     }
 
-    private static final int TIMEOUT = 20000;
-
     private MusicSearch() {
     }
 
-    /** 搜索（阻塞，必须在后台线程）。 */
-    public static Result search(String clientId, String query) {
+    // ================================================================ 搜索
+
+    /** 搜索（阻塞，后台线程调用）。 */
+    public static Result search(String source, String keyword) {
         Result r = new Result();
-        if (clientId == null || clientId.trim().isEmpty()) {
-            r.error = "未设置 Jamendo Client ID\n\n申请方法：\n"
-                    + "1) 打开 devportal.jamendo.com\n"
-                    + "2) 注册并创建 App（免费）\n"
-                    + "3) 复制 Client ID 填到设置里";
+        if (keyword == null || keyword.trim().isEmpty()) {
+            r.error = "请输入关键词";
             return r;
         }
-        if (query == null || query.trim().isEmpty()) {
-            r.error = "请输入搜索关键词";
-            return r;
-        }
-        HttpURLConnection conn = null;
         try {
-            String q = URLEncoder.encode(query.trim(), "UTF-8");
-            String url = "https://api.jamendo.com/v3.0/tracks/?client_id="
-                    + URLEncoder.encode(clientId.trim(), "UTF-8")
-                    + "&format=json&limit=25&search=" + q
-                    + "&include=licenses&audioformat=mp32";
-            conn = (HttpURLConnection) new URL(url).openConnection();
-            conn.setConnectTimeout(TIMEOUT);
-            conn.setReadTimeout(TIMEOUT);
-            conn.setRequestProperty("User-Agent", "TFManager/" + AppVersion.NAME);
-            int code = conn.getResponseCode();
-            if (code < 200 || code >= 300) {
-                r.error = "HTTP " + code;
-                return r;
+            if (SRC_QQ.equals(source)) {
+                return searchQQ(keyword.trim());
             }
-            InputStream in = conn.getInputStream();
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            byte[] buf = new byte[8192];
-            int n;
-            while ((n = in.read(buf)) > 0) {
-                bos.write(buf, 0, n);
-            }
-            in.close();
-            String body = bos.toString("UTF-8");
-
-            String status = str(body, "status");
-            if (!"success".equalsIgnoreCase(status)) {
-                String msg = str(body, "error_message");
-                r.error = msg.isEmpty() ? "接口返回失败（请检查 Client ID）" : msg;
-                return r;
-            }
-
-            // 逐条解析 results 数组
-            int idx = body.indexOf("\"results\"");
-            int arrStart = body.indexOf('[', idx);
-            int arrEnd = body.lastIndexOf(']');
-            if (arrStart < 0 || arrEnd <= arrStart) {
-                r.ok = true;
-                return r;
-            }
-            String arr = body.substring(arrStart + 1, arrEnd);
-            // 用 "id":" 作为每条记录的分隔
-            String[] objs = arr.split("\\},\\s*\\{");
-            for (String o : objs) {
-                Track t = new Track();
-                t.name = str(o, "name");
-                t.artist = str(o, "artist_name");
-                t.downloadUrl = str(o, "audiodownload");
-                t.streamUrl = str(o, "audio");
-                String dur = num(o, "duration");
-                try {
-                    t.duration = Integer.parseInt(dur);
-                } catch (Throwable ignored) {
-                }
-                if (t.downloadUrl.isEmpty()) {
-                    t.downloadUrl = t.streamUrl;
-                }
-                if (!t.name.isEmpty() && !t.downloadUrl.isEmpty()) {
-                    r.tracks.add(t);
-                }
-            }
-            r.ok = true;
-            AppLog.log("MUSIC", "search '" + query + "' → " + r.tracks.size() + " 条");
-            return r;
+            return searchNetease(keyword.trim());
         } catch (Throwable t) {
             r.error = t.getClass().getSimpleName() + ": " + t.getMessage();
             return r;
+        }
+    }
+
+    private static Result searchNetease(String kw) throws Exception {
+        Result r = new Result();
+        String url = "https://music.163.com/api/search/get?s="
+                + URLEncoder.encode(kw, "UTF-8") + "&type=1&limit=25&offset=0";
+        String body = httpGet(url, "https://music.163.com/", null);
+        int i = body.indexOf("\"songs\"");
+        if (i < 0) {
+            r.error = "网易云未返回歌曲（可能触发了风控）";
+            return r;
+        }
+        int arrStart = body.indexOf('[', i);
+        int arrEnd = matchBracket(body, arrStart);
+        if (arrStart < 0 || arrEnd < 0) {
+            r.error = "解析失败";
+            return r;
+        }
+        for (String obj : splitObjects(body, arrStart + 1, arrEnd)) {
+            Track t = new Track();
+            t.source = SRC_NETEASE;
+            t.id = topNum(obj, "id");
+            t.name = topStr(obj, "name");
+            t.artist = firstArtist(obj);
+            long ms = parseLong(topNum(obj, "duration"));
+            t.duration = (int) (ms / 1000);
+            if (!t.id.isEmpty() && !t.name.isEmpty()) {
+                r.tracks.add(t);
+            }
+        }
+        r.ok = true;
+        AppLog.log("MUSIC", "netease '" + kw + "' → " + r.tracks.size());
+        return r;
+    }
+
+    private static Result searchQQ(String kw) throws Exception {
+        Result r = new Result();
+        String url = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?w="
+                + URLEncoder.encode(kw, "UTF-8") + "&format=json&n=25&p=1";
+        String body = httpGet(url, "https://y.qq.com/", null);
+        int i = body.indexOf("\"list\"");
+        if (i < 0) {
+            r.error = "QQ音乐未返回歌曲";
+            return r;
+        }
+        int arrStart = body.indexOf('[', i);
+        int arrEnd = matchBracket(body, arrStart);
+        if (arrStart < 0 || arrEnd < 0) {
+            r.error = "解析失败";
+            return r;
+        }
+        for (String obj : splitObjects(body, arrStart + 1, arrEnd)) {
+            Track t = new Track();
+            t.source = SRC_QQ;
+            t.id = str(obj, "songmid");
+            t.name = str(obj, "songname");
+            t.artist = qqSinger(obj);
+            t.duration = (int) parseLong(num(obj, "interval"));
+            if (!t.id.isEmpty() && !t.name.isEmpty()) {
+                r.tracks.add(t);
+            }
+        }
+        r.ok = true;
+        AppLog.log("MUSIC", "qq '" + kw + "' → " + r.tracks.size());
+        return r;
+    }
+
+    // ================================================================ 下载地址
+
+    /**
+     * 解析可直接下载的音频地址。
+     *
+     * @param cookie 该平台的登录 cookie（网易云可空，QQ 必填）
+     * @param uin    QQ 号（从 cookie 里取，可空）
+     */
+    public static String downloadUrl(Track t, String cookie, String uin) throws Exception {
+        if (t == null) {
+            return null;
+        }
+        if (SRC_QQ.equals(t.source)) {
+            return resolveQQ(t.id, cookie, uin);
+        }
+        // 网易云：外链会 302 到 CDN，交给下载器跟随
+        return "https://music.163.com/song/media/outer/url?id=" + t.id + ".mp3";
+    }
+
+    private static String resolveQQ(String mid, String cookie, String uin) throws Exception {
+        String guid = "1000" + (System.currentTimeMillis() % 100000000L);
+        String payload = "{\"req_0\":{\"module\":\"vkey.GetVkeyServer\",\"method\":\"CgiGetVkey\","
+                + "\"param\":{\"guid\":\"" + guid + "\",\"songmid\":[\"" + mid + "\"],"
+                + "\"songtype\":[0],\"uin\":\"" + (uin == null ? "0" : uin) + "\","
+                + "\"loginflag\":1,\"platform\":\"20\"}}}";
+        String body = httpPost("https://u.y.qq.com/cgi-bin/musicu.fcg", payload,
+                "https://y.qq.com/", cookie);
+        int i = body.indexOf("\"purl\"");
+        if (i < 0) {
+            return null;
+        }
+        String purl = str(body.substring(i - 1), "purl");
+        String sip = "";
+        int j = body.indexOf("\"sip\"");
+        if (j >= 0) {
+            int a = body.indexOf('[', j);
+            int b = body.indexOf(']', a);
+            if (a > 0 && b > a) {
+                sip = str(body.substring(a, b), "");
+                if (sip.isEmpty()) {
+                    sip = firstQuoted(body.substring(a, b));
+                }
+            }
+        }
+        if (purl == null || purl.isEmpty()) {
+            return null;
+        }
+        if (!sip.endsWith("/")) {
+            sip = sip + "/";
+        }
+        return sip + purl;
+    }
+
+    // ================================================================ 网络
+
+    private static String httpGet(String url, String referer, String cookie) throws Exception {
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setConnectTimeout(TIMEOUT);
+            conn.setReadTimeout(TIMEOUT);
+            conn.setRequestProperty("User-Agent", UA);
+            if (referer != null) {
+                conn.setRequestProperty("Referer", referer);
+            }
+            if (cookie != null && !cookie.isEmpty()) {
+                conn.setRequestProperty("Cookie", cookie);
+            }
+            int code = conn.getResponseCode();
+            if (code < 200 || code >= 300) {
+                throw new Exception("HTTP " + code);
+            }
+            return readAll(conn.getInputStream());
         } finally {
             if (conn != null) {
                 conn.disconnect();
@@ -129,34 +212,244 @@ public final class MusicSearch {
         }
     }
 
-    // ---------------------------------------------------------------- 极简 JSON
+    private static String httpPost(String url, String body, String referer, String cookie)
+            throws Exception {
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setConnectTimeout(TIMEOUT);
+            conn.setReadTimeout(TIMEOUT);
+            conn.setRequestMethod("POST");
+            conn.setDoOutput(true);
+            conn.setRequestProperty("User-Agent", UA);
+            conn.setRequestProperty("Content-Type", "application/json");
+            if (referer != null) {
+                conn.setRequestProperty("Referer", referer);
+            }
+            if (cookie != null && !cookie.isEmpty()) {
+                conn.setRequestProperty("Cookie", cookie);
+            }
+            conn.getOutputStream().write(body.getBytes("UTF-8"));
+            int code = conn.getResponseCode();
+            if (code < 200 || code >= 300) {
+                throw new Exception("HTTP " + code);
+            }
+            return readAll(conn.getInputStream());
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+    }
 
-    private static String str(String json, String key) {
+    private static String readAll(InputStream in) throws Exception {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        int n;
+        while ((n = in.read(buf)) > 0) {
+            bos.write(buf, 0, n);
+        }
+        in.close();
+        return bos.toString("UTF-8");
+    }
+
+    // ================================================================ 极简 JSON
+
+    /** 返回与 start 处 '[' 配对的 ']' 下标。 */
+    private static int matchBracket(String s, int start) {
+        if (start < 0 || start >= s.length() || s.charAt(start) != '[') {
+            return -1;
+        }
+        int depth = 0;
+        boolean inStr = false;
+        for (int i = start; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\' && inStr) {
+                i++;
+                continue;
+            }
+            if (c == '"') {
+                inStr = !inStr;
+                continue;
+            }
+            if (inStr) {
+                continue;
+            }
+            if (c == '[') {
+                depth++;
+            } else if (c == ']') {
+                depth--;
+                if (depth == 0) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /** 把 [from,to) 区间里的顶层 {...} 对象拆出来。 */
+    private static List<String> splitObjects(String s, int from, int to) {
+        List<String> out = new ArrayList<String>();
+        int i = from;
+        while (i < to) {
+            int st = s.indexOf('{', i);
+            if (st < 0 || st >= to) {
+                break;
+            }
+            int depth = 0;
+            boolean inStr = false;
+            int end = -1;
+            for (int k = st; k < to; k++) {
+                char c = s.charAt(k);
+                if (c == '\\' && inStr) {
+                    k++;
+                    continue;
+                }
+                if (c == '"') {
+                    inStr = !inStr;
+                    continue;
+                }
+                if (inStr) {
+                    continue;
+                }
+                if (c == '{') {
+                    depth++;
+                } else if (c == '}') {
+                    depth--;
+                    if (depth == 0) {
+                        end = k;
+                        break;
+                    }
+                }
+            }
+            if (end < 0) {
+                break;
+            }
+            out.add(s.substring(st, end + 1));
+            i = end + 1;
+        }
+        return out;
+    }
+
+    /** 只取 JSON 对象「顶层」（深度 1）的字符串字段，避免命中 album/artist 子对象。 */
+    private static String topStr(String obj, String key) {
         String needle = "\"" + key + "\"";
-        int i = json.indexOf(needle);
+        int depth = 0;
+        boolean inStr = false;
+        for (int i = 0; i < obj.length(); i++) {
+            char c = obj.charAt(i);
+            if (inStr && c == '\\') {
+                i++;
+                continue;
+            }
+            if (c == '"') {
+                if (!inStr && depth == 1 && obj.startsWith(needle, i)) {
+                    int colon = obj.indexOf(':', i + needle.length());
+                    int q = colon < 0 ? -1 : obj.indexOf('"', colon + 1);
+                    if (q > 0) {
+                        StringBuilder sb = new StringBuilder();
+                        for (int k = q + 1; k < obj.length(); k++) {
+                            char ch = obj.charAt(k);
+                            if (ch == '\\' && k + 1 < obj.length()) {
+                                char e = obj.charAt(++k);
+                                if (e == 'u' && k + 4 < obj.length()) {
+                                    try {
+                                        sb.append((char) Integer.parseInt(
+                                                obj.substring(k + 1, k + 5), 16));
+                                        k += 4;
+                                    } catch (Throwable ignored) {
+                                    }
+                                } else {
+                                    sb.append(e == 'n' ? '\n' : e);
+                                }
+                            } else if (ch == '"') {
+                                break;
+                            } else {
+                                sb.append(ch);
+                            }
+                        }
+                        return sb.toString();
+                    }
+                }
+                inStr = !inStr;
+            } else if (!inStr) {
+                if (c == '{') {
+                    depth++;
+                } else if (c == '}') {
+                    depth--;
+                }
+            }
+        }
+        return "";
+    }
+
+    /** 只取顶层数字字段。 */
+    private static String topNum(String obj, String key) {
+        String needle = "\"" + key + "\"";
+        int depth = 0;
+        boolean inStr = false;
+        for (int i = 0; i < obj.length(); i++) {
+            char c = obj.charAt(i);
+            if (inStr && c == '\\') {
+                i++;
+                continue;
+            }
+            if (c == '"') {
+                if (!inStr && depth == 1 && obj.startsWith(needle, i)) {
+                    int colon = obj.indexOf(':', i + needle.length());
+                    if (colon < 0) {
+                        return "";
+                    }
+                    int k = colon + 1;
+                    while (k < obj.length() && !Character.isDigit(obj.charAt(k))
+                            && obj.charAt(k) != '-') {
+                        k++;
+                    }
+                    int st = k;
+                    while (k < obj.length() && (Character.isDigit(obj.charAt(k))
+                            || obj.charAt(k) == '-')) {
+                        k++;
+                    }
+                    return st == k ? "" : obj.substring(st, k);
+                }
+                inStr = !inStr;
+            } else if (!inStr) {
+                if (c == '{') {
+                    depth++;
+                } else if (c == '}') {
+                    depth--;
+                }
+            }
+        }
+        return "";
+    }
+
+    private static String str(String obj, String key) {
+        String needle = "\"" + key + "\"";
+        int i = obj.indexOf(needle);
         if (i < 0) {
             return "";
         }
-        int colon = json.indexOf(':', i + needle.length());
+        int colon = obj.indexOf(':', i + needle.length());
         if (colon < 0) {
             return "";
         }
-        int q1 = json.indexOf('"', colon + 1);
+        int q1 = obj.indexOf('"', colon + 1);
         if (q1 < 0) {
             return "";
         }
         StringBuilder sb = new StringBuilder();
-        for (int k = q1 + 1; k < json.length(); k++) {
-            char c = json.charAt(k);
-            if (c == '\\' && k + 1 < json.length()) {
-                char e = json.charAt(++k);
+        for (int k = q1 + 1; k < obj.length(); k++) {
+            char c = obj.charAt(k);
+            if (c == '\\' && k + 1 < obj.length()) {
+                char e = obj.charAt(++k);
                 if (e == 'n') {
                     sb.append('\n');
                 } else if (e == 't') {
                     sb.append('\t');
-                } else if (e == 'u' && k + 4 < json.length()) {
+                } else if (e == 'u' && k + 4 < obj.length()) {
                     try {
-                        sb.append((char) Integer.parseInt(json.substring(k + 1, k + 5), 16));
+                        sb.append((char) Integer.parseInt(obj.substring(k + 1, k + 5), 16));
                         k += 4;
                     } catch (Throwable ignored) {
                     }
@@ -172,27 +465,70 @@ public final class MusicSearch {
         return sb.toString();
     }
 
-    private static String num(String json, String key) {
+    private static String firstQuoted(String s) {
+        int a = s.indexOf('"');
+        if (a < 0) {
+            return "";
+        }
+        int b = s.indexOf('"', a + 1);
+        return b > a ? s.substring(a + 1, b) : "";
+    }
+
+    private static String num(String obj, String key) {
         String needle = "\"" + key + "\"";
-        int i = json.indexOf(needle);
+        int i = obj.indexOf(needle);
         if (i < 0) {
             return "";
         }
-        int colon = json.indexOf(':', i + needle.length());
+        int colon = obj.indexOf(':', i + needle.length());
         if (colon < 0) {
             return "";
         }
         int k = colon + 1;
-        while (k < json.length() && !Character.isDigit(json.charAt(k))
-                && json.charAt(k) != '-') {
+        while (k < obj.length() && !Character.isDigit(obj.charAt(k)) && obj.charAt(k) != '-') {
             k++;
         }
         int st = k;
-        while (k < json.length() && (Character.isDigit(json.charAt(k))
-                || json.charAt(k) == '.' || json.charAt(k) == '-')) {
+        while (k < obj.length() && (Character.isDigit(obj.charAt(k)) || obj.charAt(k) == '-')) {
             k++;
         }
-        return json.substring(st, k);
+        return st == k ? "" : obj.substring(st, k);
+    }
+
+    private static long parseLong(String s) {
+        try {
+            return Long.parseLong(s);
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    /** 网易云：artists 数组里第一个 name。 */
+    private static String firstArtist(String obj) {
+        int i = obj.indexOf("\"artists\"");
+        if (i < 0) {
+            return "";
+        }
+        int a = obj.indexOf('[', i);
+        int b = matchBracket(obj, a);
+        if (a < 0 || b < 0) {
+            return "";
+        }
+        return str(obj.substring(a, b), "name");
+    }
+
+    /** QQ：singer 数组里第一个 name。 */
+    private static String qqSinger(String obj) {
+        int i = obj.indexOf("\"singer\"");
+        if (i < 0) {
+            return "";
+        }
+        int a = obj.indexOf('[', i);
+        int b = matchBracket(obj, a);
+        if (a < 0 || b < 0) {
+            return "";
+        }
+        return str(obj.substring(a, b), "name");
     }
 
     /** 时长格式化。 */
@@ -201,5 +537,23 @@ public final class MusicSearch {
             return "";
         }
         return String.format(java.util.Locale.US, "%d:%02d", sec / 60, sec % 60);
+    }
+
+    /** 从 cookie 里取 uin（QQ 号）。 */
+    public static String uinFromCookie(String cookie) {
+        if (cookie == null) {
+            return "";
+        }
+        for (String part : cookie.split(";")) {
+            String p = part.trim();
+            if (p.startsWith("uin=") || p.startsWith("p_uin=")) {
+                String v = p.substring(p.indexOf('=') + 1);
+                v = v.replace("o", "").replace("O", "");
+                if (v.matches("\\d+")) {
+                    return v;
+                }
+            }
+        }
+        return "";
     }
 }

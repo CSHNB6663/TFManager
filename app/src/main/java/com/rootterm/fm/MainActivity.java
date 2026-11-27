@@ -1803,18 +1803,11 @@ public class MainActivity extends Activity {
                 pickBgm();
             }
         });
-        bgm.clickRow("免费音乐下载", "Jamendo CC 曲库 · 合法可下载", "",
+        bgm.clickRow("在线音乐下载", "网易云 / QQ音乐 · 搜索并下载", "",
                 new MiuixPreference.OnClick() {
                     @Override
                     public void onClick(View v) {
                         showMusicSearch();
-                    }
-                });
-        bgm.clickRow("Jamendo Client ID", musicClientId().isEmpty() ? "未设置（点此申请/填写）" : "已设置",
-                "", new MiuixPreference.OnClick() {
-                    @Override
-                    public void onClick(View v) {
-                        promptMusicClientId();
                     }
                 });
         bgm.clickRow("播放 / 暂停", BgmPlayer.isPlaying() ? "正在播放" : "已暂停", "",
@@ -2737,130 +2730,208 @@ public class MainActivity extends Activity {
         }, "bgm-auto").start();
     }
 
-    // ------------------------------------------------------------ 免费音乐（Jamendo）
+    // ------------------------------------------------------------ 在线音乐（网易云 / QQ音乐）
 
-    private String musicClientId() {
-        String v = uiPrefs().getString("jamendo_cid", "");
-        return v == null ? "" : v.trim();
-    }
+    /** 当前选中的平台（默认网易云）。 */
+    private String musicSource = MusicSearch.SRC_NETEASE;
 
-    private void promptMusicClientId() {
-        final android.widget.EditText et = new android.widget.EditText(this);
-        et.setSingleLine(true);
-        et.setText(musicClientId());
-        et.setHint("Jamendo Client ID");
-        styleInput(et);
-
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        TextView tip = UiConfig.text(this,
-                "Jamendo 是 CC 授权免费曲库，下载完全合法。\n\n"
-                        + "申请 Client ID（免费，约 1 分钟）：\n"
-                        + "1) 打开 devportal.jamendo.com\n"
-                        + "2) 用邮箱注册\n"
-                        + "3) Create App → 复制 Client ID\n\n"
-                        + "本 App 不内置任何第三方密钥。",
-                11.5f, 0xFF2A4A7F);
-        tip.setLineSpacing(dp(2), 1f);
-        box.addView(tip);
-        box.addView(label2("Client ID"));
-        box.addView(et);
-
-        MiuixWindow.builder(this)
-                .title("Jamendo Client ID")
-                .content(box)
-                .scrollable(false)
-                .positive("保存", new MiuixWindow.OnAction() {
-                    @Override
-                    public void onClick(android.app.Dialog d) {
-                        uiPrefs().edit().putString("jamendo_cid",
-                                et.getText().toString().trim()).apply();
-                        toast("已保存");
-                    }
-                })
-                .negative("取消", null)
-                .show();
+    private String musicCookie(String source) {
+        String v = uiPrefs().getString("music_cookie_" + source, "");
+        return v == null ? "" : v;
     }
 
     private void showMusicSearch() {
-        if (musicClientId().isEmpty()) {
-            promptMusicClientId();
-            return;
-        }
         final android.widget.EditText et = new android.widget.EditText(this);
         et.setSingleLine(true);
-        et.setHint("搜索关键词，如 piano / 轻音乐 / guitar");
+        et.setHint("搜索歌名 / 歌手，如 晴天");
         styleInput(et);
 
-        final TextView out = UiConfig.text(this, "", 11.5f, MiuixTheme.onSurfaceVariant());
-        out.setLineSpacing(dp(2), 1f);
-        out.setPadding(0, dp(10), 0, 0);
+        final TextView srcLabel = UiConfig.text(this,
+                "平台：" + (MusicSearch.SRC_QQ.equals(musicSource) ? "QQ音乐" : "网易云音乐"),
+                11.5f, MiuixTheme.onSurfaceVariant());
+
+        LinearLayout srcRow = new LinearLayout(this);
+        srcRow.setOrientation(LinearLayout.HORIZONTAL);
+        final TextView btnNe = UiConfig.button(this, "网易云", true);
+        final TextView btnQQ = UiConfig.button(this, "QQ音乐", false);
+        LinearLayout.LayoutParams l1 = new LinearLayout.LayoutParams(0, dp(34), 1f);
+        LinearLayout.LayoutParams l2 = new LinearLayout.LayoutParams(0, dp(34), 1f);
+        l2.leftMargin = dp(8);
+        srcRow.addView(btnNe, l1);
+        srcRow.addView(btnQQ, l2);
+
+        final TextView loginHint = UiConfig.text(this, "", 10.5f, MiuixTheme.onSurfaceVariant());
 
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
+        box.addView(srcRow);
+        box.addView(srcLabel, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        TextView gapv = new TextView(this);
+        gapv.setHeight(dp(8));
+        box.addView(gapv);
         box.addView(et);
-        box.addView(out);
+        box.addView(loginHint);
 
-        final android.app.Dialog dlg = MiuixWindow.builder(this)
-                .title("免费音乐搜索")
+        final android.app.Dialog[] holder = new android.app.Dialog[1];
+
+        btnNe.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                musicSource = MusicSearch.SRC_NETEASE;
+                srcLabel.setText("平台：网易云音乐");
+                btnNe.setBackgroundColor(ThemeColors.ACCENT);
+                btnQQ.setBackgroundColor(0xFFE8EEF8);
+                btnNe.setTextColor(0xFFFFFFFF);
+                btnQQ.setTextColor(0xFF33507A);
+                updateLoginHint(loginHint);
+            }
+        });
+        btnQQ.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                musicSource = MusicSearch.SRC_QQ;
+                srcLabel.setText("平台：QQ音乐");
+                btnQQ.setBackgroundColor(ThemeColors.ACCENT);
+                btnNe.setBackgroundColor(0xFFE8EEF8);
+                btnQQ.setTextColor(0xFFFFFFFF);
+                btnNe.setTextColor(0xFF33507A);
+                updateLoginHint(loginHint);
+            }
+        });
+        updateLoginHint(loginHint);
+
+        holder[0] = MiuixWindow.builder(this)
+                .title("在线音乐")
                 .content(box)
                 .scrollable(false)
                 .positive("搜索", new MiuixWindow.OnAction() {
                     @Override
                     public void onClick(android.app.Dialog d) {
-                        String q = et.getText().toString().trim();
-                        if (q.isEmpty()) {
+                        String kw = et.getText().toString().trim();
+                        if (kw.isEmpty()) {
                             toast("请输入关键词");
                             return;
                         }
-                        out.setText("搜索中…");
-                        new Thread(new Runnable() {
-                            @Override
-                            public void run() {
-                                final MusicSearch.Result r =
-                                        MusicSearch.search(musicClientId(), q);
-                                runOnUiThread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        if (!r.ok) {
-                                            out.setText("失败：" + r.error);
-                                            return;
-                                        }
-                                        if (r.tracks.isEmpty()) {
-                                            out.setText("没有找到结果");
-                                            return;
-                                        }
-                                        out.setText("找到 " + r.tracks.size() + " 首，正在打开列表…");
-                                        showMusicResults(r);
-                                    }
-                                });
-                            }
-                        }, "music-search").start();
+                        searchMusic(kw);
+                    }
+                })
+                .neutral("登录", new MiuixWindow.OnAction() {
+                    @Override
+                    public void onClick(android.app.Dialog d) {
+                        openMusicLogin();
                     }
                 })
                 .negative("关闭", null)
                 .show();
     }
 
-    private void showMusicResults(final MusicSearch.Result r) {
+    private void updateLoginHint(TextView t) {
+        String c = musicCookie(musicSource);
+        if (MusicSearch.SRC_QQ.equals(musicSource)) {
+            t.setText(c.isEmpty() ? "QQ音乐下载需登录（点「登录」）" : "QQ音乐：已登录");
+        } else {
+            t.setText(c.isEmpty() ? "网易云：未登录（免费曲目可直接下载）" : "网易云：已登录");
+        }
+    }
+
+    /** 打开对应平台的登录取 cookie 页面。 */
+    private void openMusicLogin() {
+        final String src = musicSource;
+        final String url = MusicSearch.SRC_QQ.equals(src)
+                ? "https://y.qq.com/" : "https://music.163.com/";
+        final String title = MusicSearch.SRC_QQ.equals(src) ? "登录 QQ音乐" : "登录网易云音乐";
+
+        final CookieLoginPanel panel = new CookieLoginPanel(this, url, title);
+        FrameLayout overlay = new FrameLayout(this);
+        overlay.setBackgroundColor(0xFFFFFFFF);
+        overlay.addView(panel, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        final ViewGroup root = (ViewGroup) getWindow().getDecorView();
+        root.addView(overlay, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        panel.setOnDone(new CookieLoginPanel.OnDone() {
+            @Override
+            public void onDone(String cookie) {
+                try {
+                    if (cookie != null && !cookie.isEmpty()) {
+                        uiPrefs().edit().putString("music_cookie_" + src, cookie).apply();
+                        toast(cookie.isEmpty() ? "未获取到 Cookie" : "已保存登录信息");
+                        AppLog.log("MUSIC", "login " + src + " cookie len=" + cookie.length());
+                    } else {
+                        toast("未获取到 Cookie，可能还没登录");
+                    }
+                } catch (Throwable ignored) {
+                }
+                panel.destroy();
+                try {
+                    root.removeView(overlay);
+                } catch (Throwable ignored) {
+                }
+            }
+        });
+    }
+
+    private void searchMusic(final String kw) {
+        final String src = musicSource;
+        final TextView loading = UiConfig.text(this, "搜索中…", 12f, MiuixTheme.onSurfaceVariant());
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.addView(loading);
+        final android.app.Dialog d = MiuixWindow.builder(this)
+                .title("搜索")
+                .content(box)
+                .scrollable(false)
+                .negative("取消", null)
+                .show();
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final MusicSearch.Result r = MusicSearch.search(src, kw);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            d.dismiss();
+                        } catch (Throwable ignored) {
+                        }
+                        if (!r.ok) {
+                            MiuixWindow.builder(MainActivity.this)
+                                    .title("搜索失败")
+                                    .message(r.error)
+                                    .positive("知道了", null)
+                                    .show();
+                            return;
+                        }
+                        if (r.tracks.isEmpty()) {
+                            toast("没有找到结果");
+                            return;
+                        }
+                        showMusicResults(r, src);
+                    }
+                });
+            }
+        }, "music-search").start();
+    }
+
+    private void showMusicResults(final MusicSearch.Result r, final String src) {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
 
         ScrollView sv = new ScrollView(this);
-        sv.setVerticalFadingEdgeEnabled(false);
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         sv.addView(list);
         box.addView(sv, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(340)));
 
-        final android.app.Dialog[] holder = new android.app.Dialog[1];
-
         for (final MusicSearch.Track t : r.tracks) {
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(dp(12), dp(10), dp(12), dp(10));
+            row.setPadding(dp(10), dp(9), dp(10), dp(9));
 
             LinearLayout texts = new LinearLayout(this);
             texts.setOrientation(LinearLayout.VERTICAL);
@@ -2880,30 +2951,30 @@ public class MainActivity extends Activity {
             dl.setSingleLine(true);
             dl.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f);
             dl.setPadding(dp(2), 0, dp(2), 0);
-            LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(58), dp(32));
-            dlp.leftMargin = dp(8);
+            LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(56), dp(32));
+            dlp.leftMargin = dp(6);
             dl.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    downloadTrack(t);
+                    downloadTrack(t, src);
                 }
             });
             row.addView(dl, dlp);
             list.addView(row);
         }
 
-        holder[0] = MiuixWindow.builder(this)
-                .title("搜索结果（" + r.tracks.size() + "）")
+        MiuixWindow.builder(this)
+                .title("结果（" + r.tracks.size() + "）")
                 .content(box)
                 .scrollable(false)
                 .negative("关闭", null)
                 .show();
     }
 
-    /** 下载一首歌到 /sdcard/Download/音乐/。 */
-    private void downloadTrack(final MusicSearch.Track t) {
+    /** 下载到 /sdcard/Download/音乐/。 */
+    private void downloadTrack(final MusicSearch.Track t, final String src) {
         final TextView status = new TextView(this);
-        status.setText("正在下载 " + t.name + " …");
+        status.setText("解析地址…");
         status.setTextSize(12.5f);
         status.setTextColor(MiuixTheme.onSurface());
         final android.widget.ProgressBar bar = new android.widget.ProgressBar(this, null,
@@ -2918,7 +2989,7 @@ public class MainActivity extends Activity {
         box.addView(bar, bp);
 
         MiuixWindow.builder(this)
-                .title("下载音乐")
+                .title("下载")
                 .content(box)
                 .scrollable(false)
                 .cancelable(false)
@@ -2931,33 +3002,43 @@ public class MainActivity extends Activity {
                 String err = null;
                 java.io.File out = null;
                 try {
+                    String cookie = musicCookie(src);
+                    String uin = MusicSearch.uinFromCookie(cookie);
+                    String url = MusicSearch.downloadUrl(t, cookie, uin);
+                    if (url == null || url.isEmpty()) {
+                        throw new Exception(MusicSearch.SRC_QQ.equals(src)
+                                ? "拿不到播放地址：请先登录 QQ音乐（且该曲目可能需要绿钻）"
+                                : "拿不到播放地址");
+                    }
+                    AppLog.log("MUSIC", "dl url=" + url.substring(0, Math.min(90, url.length())));
+
                     java.io.File dir = new java.io.File("/sdcard/Download/音乐");
                     if (!dir.exists() && !dir.mkdirs()) {
-                        throw new Exception("无法创建目录");
+                        throw new Exception("无法创建 /sdcard/Download/音乐");
                     }
                     String safe = (t.artist + " - " + t.name)
-                            .replaceAll("[\\\\/:*?\"<>|\n\r]", "_");
+                            .replaceAll("[\\\\\\\\/:*?\"<>|\\n\\r]", "_");
                     if (safe.length() > 80) {
                         safe = safe.substring(0, 80);
                     }
                     out = new java.io.File(dir, safe + ".mp3");
-                    MultiDownloader.download(t.downloadUrl, out, 4,
-                            new MultiDownloader.Progress() {
+                    MultiDownloader.download(url, out, 4, new MultiDownloader.Progress() {
+                        @Override
+                        public void onProgress(final long d, final long total) {
+                            runOnUiThread(new Runnable() {
                                 @Override
-                                public void onProgress(final long d, final long total) {
-                                    runOnUiThread(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            if (total > 0) {
-                                                bar.setProgress((int) (d * 1000 / total));
-                                                status.setText("已下载 "
-                                                        + (d / 1024) + " / "
-                                                        + (total / 1024) + " KB");
-                                            }
-                                        }
-                                    });
+                                public void run() {
+                                    if (total > 0) {
+                                        bar.setProgress((int) (d * 1000 / total));
+                                        status.setText("已下载 " + (d / 1024) + " / "
+                                                + (total / 1024) + " KB");
+                                    } else {
+                                        status.setText("已下载 " + (d / 1024) + " KB");
+                                    }
                                 }
                             });
+                        }
+                    });
                 } catch (Throwable th) {
                     err = th.getMessage();
                 }
