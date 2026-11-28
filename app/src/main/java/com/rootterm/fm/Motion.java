@@ -76,14 +76,17 @@ public final class Motion {
         }
     }
 
-    /** 当前等级使用的插值器：轻柔档不用回弹，避免「晃」。 */
+    /** 当前等级使用的插值器：轻柔档用平滑淡入，完整档才回弹。 */
     private static Interpolator ip() {
-        return LEVEL >= 2 ? SPRING : DECEL;
+        return LEVEL >= 2 ? SPRING : EMPHASIZED;
     }
 
     private static int dur() {
-        return LEVEL >= 2 ? DUR_ENTER : 160;
+        return LEVEL >= 2 ? DUR_ENTER : DUR_FADE;
     }
+
+    /** 纯淡入淡出时长：参考录屏里页面切换约 0.3~0.4 秒，取 320ms。 */
+    public static final int DUR_FADE = 320;
 
     private Motion() {
     }
@@ -124,15 +127,20 @@ public final class Motion {
             v.setAlpha(toAlpha);
             return;
         }
-        float to = LEVEL >= 2 ? toScale : 0.99f;
-        v.animate()
-                .alpha(toAlpha)
-                .scaleX(to)
-                .scaleY(to)
-                .setInterpolator(ip())
-                .setDuration(LEVEL >= 2 ? duration : 140)
-                .withLayer()
-                .start();
+        if (LEVEL >= 2) {
+            v.animate().alpha(toAlpha).scaleX(toScale).scaleY(toScale)
+                    .setInterpolator(EMPHASIZED)
+                    .setDuration(duration)
+                    .withLayer()
+                    .start();
+        } else {
+            // 轻柔档：位置不动，只淡出
+            v.animate().alpha(toAlpha)
+                    .setInterpolator(EMPHASIZED)
+                    .setDuration(DUR_FADE)
+                    .withLayer()
+                    .start();
+        }
     }
 
     /** 复位到可见的正常状态（避免动画被中断后残留半透明/缩放）。 */
@@ -162,22 +170,30 @@ public final class Motion {
             v.setTranslationY(0f);
             return;
         }
-        // 轻柔档：不做上浮、缩放也几乎看不出来，只淡入
         final boolean full = LEVEL >= 2;
-        final float dy = full ? v.getResources().getDisplayMetrics().density * 10f : 0f;
-        v.setAlpha(0f);
-        v.setScaleX(full ? 0.92f : 0.97f);
-        v.setScaleY(full ? 0.92f : 0.97f);
-        v.setTranslationY(dy);
-        v.animate()
-                .alpha(1f)
-                .scaleX(1f)
-                .scaleY(1f)
-                .translationY(0f)
-                .setInterpolator(ip())
-                .setDuration(full ? DUR_ENTER : 150)
-                .withLayer()
-                .start();
+        if (full) {
+            final float dy = v.getResources().getDisplayMetrics().density * 10f;
+            v.setAlpha(0f);
+            v.setScaleX(0.92f);
+            v.setScaleY(0.92f);
+            v.setTranslationY(dy);
+            v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
+                    .setInterpolator(SPRING)
+                    .setDuration(DUR_ENTER)
+                    .withLayer()
+                    .start();
+        } else {
+            // 轻柔档：纯淡入，不位移不缩放
+            v.setScaleX(1f);
+            v.setScaleY(1f);
+            v.setTranslationY(0f);
+            v.setAlpha(0f);
+            v.animate().alpha(1f)
+                    .setInterpolator(EMPHASIZED)
+                    .setDuration(220)
+                    .withLayer()
+                    .start();
+        }
     }
 
     /**

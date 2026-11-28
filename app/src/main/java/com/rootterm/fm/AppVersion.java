@@ -7,8 +7,8 @@ public final class AppVersion {
      * 语义化版本编码：major*10000 + minor*100 + patch。
      * 例：4.0.1 → 40001，与更新源 tag（v4.0.1）的解析规则完全一致。
      */
-    public static final int CODE = 60420;
-    public static final String NAME = "6.4.20";
+    public static final int CODE = 60421;
+    public static final String NAME = "6.4.21";
 
     private AppVersion() {
     }

@@ -750,18 +750,22 @@ public class MainActivity extends Activity {
                 final View old = exitingPage;
                 old.setVisibility(View.VISIBLE);
                 old.animate().cancel();
-                old.animate().alpha(0f).scaleX(0.97f).scaleY(0.97f)
+                // 轻柔档：只淡出，保持位置与尺寸不变（对齐录屏里的交叉淡入）
+                android.view.ViewPropertyAnimator anim = old.animate().alpha(0f)
                         .setInterpolator(Motion.EMPHASIZED)
-                        .setDuration(Motion.DUR_STANDARD)
-                        .withEndAction(new Runnable() {
-                            @Override
-                            public void run() {
-                                if (old != mLastShownPage) {
-                                    old.setVisibility(View.GONE);
-                                }
-                                Motion.reset(old);
-                            }
-                        }).start();
+                        .setDuration(Motion.LEVEL >= 2 ? Motion.DUR_STANDARD : Motion.DUR_FADE);
+                if (Motion.LEVEL >= 2) {
+                    anim.scaleX(0.97f).scaleY(0.97f);
+                }
+                anim.withLayer().withEndAction(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (old != mLastShownPage) {
+                            old.setVisibility(View.GONE);
+                        }
+                        Motion.reset(old);
+                    }
+                }).start();
             }
             Motion.reset(shown);
             Motion.enter(shown, 0.96f, 0f);
