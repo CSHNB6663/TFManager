@@ -141,6 +141,7 @@ public class MainActivity extends Activity {
         // 固定玻璃配色（已移除 Monet 动态取色）
         ThemeColors.init(this);
         Motion.loadLevel(this);
+        JankMonitor.start();
         C_BG = ThemeColors.SURFACE;
         C_ACCENT = ThemeColors.ACCENT;
         C_NAV_ACTIVE_BG = ThemeColors.ACCENT_CONTAINER;
@@ -154,6 +155,7 @@ public class MainActivity extends Activity {
             setContentView(rootView);
         }
         selectTab(TAB_HOME);
+        installScrollBackdropRefresh();
         Shell.detectRootAsync(new Runnable() {
             @Override
             public void run() {
@@ -643,6 +645,40 @@ public class MainActivity extends Activity {
         });
     }
 
+    /** 滚动停止后刷新一次底栏磨砂底（滚动过程中不抓，避免抢 GPU）。 */
+    private Runnable mBackdropRefresh;
+
+    private void installScrollBackdropRefresh() {
+        if (mPages == null) {
+            return;
+        }
+        try {
+            mPages.getViewTreeObserver().addOnScrollChangedListener(
+                    new android.view.ViewTreeObserver.OnScrollChangedListener() {
+                        @Override
+                        public void onScrollChanged() {
+                            if (mMiuixNav == null) {
+                                return;
+                            }
+                            if (mBackdropRefresh != null) {
+                                mPages.removeCallbacks(mBackdropRefresh);
+                            }
+                            mBackdropRefresh = new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (mMiuixNav != null) {
+                                        mMiuixNav.refreshBackdrop();
+                                    }
+                                }
+                            };
+                            mPages.postDelayed(mBackdropRefresh, 380);
+                        }
+                    });
+        } catch (Throwable t) {
+            AppLog.log("UI", "滚动磨砂监听挂载失败", t);
+        }
+    }
+
     private int resId(String name) {
         return getResources().getIdentifier(name, "drawable", getPackageName());
     }
@@ -652,7 +688,7 @@ public class MainActivity extends Activity {
         if (mMiuixNav == null || mPages == null) {
             return;
         }
-        // 转场（约 220~240ms）结束后再抓磨砂底，避免和动画抢 GPU
+        // 转场结束后抓一次磨砂底（只抓一次，不周期重抓）
         mPages.postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -660,7 +696,7 @@ public class MainActivity extends Activity {
                     mMiuixNav.autoBackdrop(mPages);
                 }
             }
-        }, 480);
+        }, 420);
     }
 
     /** inset 变化时更新胶囊底部间距。 */

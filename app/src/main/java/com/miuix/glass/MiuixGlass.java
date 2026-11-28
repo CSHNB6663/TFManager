@@ -51,8 +51,6 @@ public class MiuixGlass extends FrameLayout {
     /** 自动磨砂底：背后内容变化时重新抓一帧。 */
     private View mBackdropSource;
     private boolean mAutoBackdrop;
-    private long mLastCapture;
-    private static final long CAPTURE_INTERVAL_MS = 420L;
 
     public MiuixGlass(Context c) {
         super(c);
@@ -256,12 +254,40 @@ public class MiuixGlass extends FrameLayout {
      * 自动磨砂：每次绘制前检查背后内容，间隔足够就重抓一帧。
      * 适合导航条这类长期悬浮在其他页面之上的玻璃。
      */
+    /**
+     * 设置磨砂底来源并立即抓一帧。
+     *
+     * <p>只抓这一帧，之后不再周期性重抓 —— 之前每 420ms 就整页软件重绘
+     * 一次再模糊，是滚动与转场卡顿的主要来源。内容变化时由调用方显式
+     * 调 {@link #refreshBackdrop()}。</p>
+     */
     public void autoBackdrop(View behind) {
         mBackdropSource = behind;
-        mAutoBackdrop = behind != null;
-        if (mAutoBackdrop) {
+        mAutoBackdrop = false;          // 关闭周期抓帧
+        if (behind != null) {
             captureBackdrop(behind);
         }
+    }
+
+    /** 内容变化后手动刷新一帧磨砂底（廉价：低分辨率 + 1 次模糊）。 */
+    public void refreshBackdrop() {
+        View src = mBackdropSource;
+        if (src == null || getWindowToken() == null) {
+            return;
+        }
+        post(new Runnable() {
+            @Override
+            public void run() {
+                View s2 = mBackdropSource;
+                if (s2 == null) {
+                    return;
+                }
+                Bitmap b = MiuixBlur.backdrop(s2, 12f, 1);
+                if (b != null) {
+                    setBackdrop(b);
+                }
+            }
+        });
     }
 
     public void clearBackdrop() {
@@ -303,7 +329,6 @@ public class MiuixGlass extends FrameLayout {
             mPath = buildPath(w, h);
         }
 
-        maybeCaptureBackdrop();
 
         // 1) 磨砂底（裁到超椭圆内）
         if (mBackdrop != null && !mBackdrop.isRecycled()) {
@@ -355,28 +380,6 @@ public class MiuixGlass extends FrameLayout {
         super.onDraw(canvas);
     }
 
-    private void maybeCaptureBackdrop() {
-        if (!mAutoBackdrop || mBackdropSource == null) {
-            return;
-        }
-        long now = android.os.SystemClock.uptimeMillis();
-        if (now - mLastCapture < CAPTURE_INTERVAL_MS) {
-            return;
-        }
-        mLastCapture = now;
-        final View src = mBackdropSource;
-        post(new Runnable() {
-            @Override
-            public void run() {
-                if (mAutoBackdrop && mBackdropSource == src) {
-                    Bitmap b = MiuixBlur.backdrop(src, 10f);
-                    if (b != null) {
-                        setBackdrop(b);
-                    }
-                }
-            }
-        });
-    }
 
     private void applyClip() {
         if (!mCapsule) {

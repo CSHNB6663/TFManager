@@ -120,9 +120,14 @@ public class MiuixNavBar extends FrameLayout {
         mPill.captureBackdropRegion(src, 14f);
     }
 
-    /** 自动磨砂：玻璃持续跟随背后页面。 */
+    /** 设置磨砂底来源并抓一帧（只抓一次，不周期重抓）。 */
     public void autoBackdrop(View behind) {
         mPill.autoBackdrop(behind);
+    }
+
+    /** 页面内容变化（滚动停止、切换页）后刷新一帧磨砂底。 */
+    public void refreshBackdrop() {
+        mPill.refreshBackdrop();
     }
 
     public MiuixNavBar listener(Listener l) {
