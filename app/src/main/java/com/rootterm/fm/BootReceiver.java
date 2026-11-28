@@ -13,8 +13,9 @@ public class BootReceiver extends BroadcastReceiver {
             return;
         }
         String a = intent.getAction();
+        // 只接受系统保护广播：BOOT_COMPLETED 与 MY_PACKAGE_REPLACED 只有系统能发，
+        // 第三方 App 无法伪造。QUICKBOOT_POWERON 不是保护广播，能被任意应用触发，已移除。
         if (Intent.ACTION_BOOT_COMPLETED.equals(a)
-                || "android.intent.action.QUICKBOOT_POWERON".equals(a)
                 || Intent.ACTION_MY_PACKAGE_REPLACED.equals(a)) {
             NotifyService.startIfEnabled(context);
         }

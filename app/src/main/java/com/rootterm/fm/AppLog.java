@@ -62,21 +62,9 @@ public final class AppLog {
     }
 
     private static File resolveDir(Context ctx) {
-        // 优先外部「下载」目录，方便用户直接取出
-        try {
-            File d = new File("/sdcard/Download/TF管理终端-日志");
-            if (!d.exists()) {
-                d.mkdirs();
-            }
-            File probe = new File(d, ".w");
-            FileOutputStream fo = new FileOutputStream(probe);
-            fo.write(1);
-            fo.close();
-            probe.delete();
-            return d;
-        } catch (Throwable ignored) {
-        }
-        // 回退：应用私有目录
+        // 放应用私有目录：日志里可能含带签名的下载地址等敏感信息，
+        // 不能落在公共存储让任何有存储权限的 App 读走。
+        // 用户仍可在「设置 → 日志 → 查看运行日志」里看，也可在这里导出。
         try {
             File d = new File(ctx.getFilesDir(), "logs");
             d.mkdirs();
@@ -86,8 +74,37 @@ public final class AppLog {
         }
     }
 
+    /** 脱敏：URL 只保留 scheme://host/文件名，去掉查询串里的签名参数。 */
+    public static String scrub(String s) {
+        if (s == null || s.isEmpty()) {
+            return s;
+        }
+        try {
+            int q = s.indexOf('?');
+            if (q < 0) {
+                return s;
+            }
+            // 只对看起来像 URL 的片段处理
+            if (!s.contains("://")) {
+                return s;
+            }
+            String head = s.substring(0, q);
+            String tail = s.substring(q);
+            // 查询串里若有 Key/Tim/token 之类，整体丢弃
+            String low = tail.toLowerCase();
+            if (low.contains("key=") || low.contains("tim=") || low.contains("token=")
+                    || low.contains("session") || low.contains("auth") || low.contains("sign")) {
+                return head + "?<已隐藏>";
+            }
+            return head;
+        } catch (Throwable ignored) {
+            return s;
+        }
+    }
+
     /** 写一行日志。 */
     public static void log(String tag, String msg) {
+        msg = scrub(msg);
         if (sDir == null) {
             return;
         }

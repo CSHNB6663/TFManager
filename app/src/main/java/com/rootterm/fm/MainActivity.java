@@ -1560,8 +1560,90 @@ public class MainActivity extends Activity {
         }, "update-download").start();
     }
 
+    /**
+     * 校验待安装 APK 的签名证书是否与自身一致。
+     *
+     * <p>更新源地址可由远端配置随时更改，若不校验，被改仓库或中间人劫持
+     * 就能推任意安装包。这里比对签名证书 SHA-256 与构建期注入的指纹。</p>
+     */
+    private String verifyUpdateApk(java.io.File apk) {
+        try {
+            int flags = android.os.Build.VERSION.SDK_INT >= 28
+                    ? android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES
+                    : android.content.pm.PackageManager.GET_SIGNATURES;
+            android.content.pm.PackageInfo pi = getPackageManager()
+                    .getPackageArchiveInfo(apk.getAbsolutePath(), flags);
+            if (pi == null) {
+                return "安装包损坏或不是有效 APK";
+            }
+            byte[] cert = null;
+            if (pi.signatures != null && pi.signatures.length > 0) {
+                cert = pi.signatures[0].toByteArray();
+            } else if (android.os.Build.VERSION.SDK_INT >= 28 && pi.signingInfo != null) {
+                android.content.pm.Signature[] sigs = pi.signingInfo.hasMultipleSigners()
+                        ? pi.signingInfo.getApkContentsSigners()
+                        : pi.signingInfo.getSigningCertificateHistory();
+                if (sigs != null && sigs.length > 0) {
+                    cert = sigs[0].toByteArray();
+                }
+            }
+            if (cert == null) {
+                return "安装包没有签名信息";
+            }
+            String actual = sha256Hex(cert);
+            String expected = BuildCert.SHA256;
+            if (expected == null || expected.isEmpty() || "unknown".equals(expected)
+                    || "typecheck".equals(expected)) {
+                AppLog.log("UPDATE", "签名指纹缺失，跳过校验");
+                return null;
+            }
+            if (!expected.equalsIgnoreCase(actual)) {
+                AppLog.log("UPDATE", "签名不符 expected=" + expected + " actual=" + actual);
+                return "签名不匹配（可能是伪造的更新包）";
+            }
+            AppLog.log("UPDATE", "更新包签名校验通过");
+            return null;
+        } catch (Throwable t) {
+            AppLog.log("UPDATE", "校验异常", t);
+            return "校验失败：" + t.getMessage();
+        }
+    }
+
+    private static String sha256Hex(byte[] data) {
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] d = md.digest(data);
+            StringBuilder sb = new StringBuilder(d.length * 2);
+            for (byte b : d) {
+                String h = Integer.toHexString(b & 0xFF);
+                if (h.length() == 1) {
+                    sb.append('0');
+                }
+                sb.append(h);
+            }
+            return sb.toString();
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
     /** 用 content:// 调起系统安装器。 */
     private void installApk(java.io.File apk) {
+        // 安装前必须校验签名，避免被伪造的更新包覆盖
+        String bad = verifyUpdateApk(apk);
+        if (bad != null) {
+            AppLog.log("UPDATE", "拒绝安装：" + bad);
+            try {
+                apk.delete();
+            } catch (Throwable ignored) {
+            }
+            MiuixWindow.builder(this)
+                    .title("已拒绝安装")
+                    .message(bad + "\n\n更新包已删除，请到官方仓库重新下载。")
+                    .positive("知道了", null)
+                    .show();
+            return;
+        }
         try {
             android.net.Uri uri = ApkProvider.uriFor(apk);
             Intent i = new Intent(Intent.ACTION_VIEW);

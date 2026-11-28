@@ -38,10 +38,8 @@
         <domain includeSubdomains="true">gtimg.cn</domain>
     </domain-config>
 
-    <!-- 更新 / 网盘分享 -->
+    <!-- 更新链路强制 HTTPS：github.com / githubusercontent.com 不在明文白名单里 -->
     <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">github.com</domain>
-        <domain includeSubdomains="true">githubusercontent.com</domain>
         <domain includeSubdomains="true">quark.cn</domain>
         <domain includeSubdomains="true">baidu.com</domain>
     </domain-config>

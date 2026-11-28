@@ -28,12 +28,35 @@ public class ApkProvider extends ContentProvider {
     }
 
     private File resolve(Uri uri) {
-        String name = uri.getLastPathSegment();
-        if (name == null || name.contains("/") || name.contains("..")) {
+        if (uri == null) {
+            return null;
+        }
+        // 只接受 /apk/<文件名>，避免别的路径被解析
+        java.util.List<String> seg = uri.getPathSegments();
+        if (seg == null || seg.size() != 2 || !"apk".equals(seg.get(0))) {
+            return null;
+        }
+        String name = seg.get(1);
+        if (name == null || name.isEmpty() || name.contains("/") || name.contains("\\")
+                || name.contains("..")) {
+            return null;
+        }
+        // 只对外提供 APK，防止被当成任意文件读取器
+        if (!name.toLowerCase(java.util.Locale.ROOT).endsWith(".apk")) {
             return null;
         }
         File dir = new File(getContext().getFilesDir(), DIR);
         File f = new File(dir, name);
+        try {
+            // 规范化后必须仍在 update/ 目录内
+            String base = dir.getCanonicalPath() + File.separator;
+            String real = f.getCanonicalPath();
+            if (!real.startsWith(base)) {
+                return null;
+            }
+        } catch (Throwable t) {
+            return null;
+        }
         return f.isFile() ? f : null;
     }
 

@@ -107,6 +107,15 @@ public class FanqieWebLogin extends LinearLayout {
         web = new WebView(c);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
+        // 加固：禁止 WebView 读取本地文件与 content://，防被恶意页面当成文件读取器
+        try {
+            s.setAllowFileAccess(false);
+            s.setAllowContentAccess(false);
+            s.setAllowFileAccessFromFileURLs(false);
+            s.setAllowUniversalAccessFromFileURLs(false);
+            s.setSafeBrowsingEnabled(true);
+        } catch (Throwable ignored) {
+        }
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
         s.setLoadWithOverviewMode(true);
@@ -116,6 +125,20 @@ public class FanqieWebLogin extends LinearLayout {
         CookieManager cm = CookieManager.getInstance();
         cm.setAcceptCookie(true);
         cm.setAcceptThirdPartyCookies(web, true);
+
+        // 只允许 http/https 导航，挡住 file:// content:// intent:// javascript: 等
+        web.setWebViewClient(new android.webkit.WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView v, String url) {
+                return blockUnsafeUrl(v, url);
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView v,
+                                                    android.webkit.WebResourceRequest req) {
+                return blockUnsafeUrl(v, req.getUrl() == null ? "" : req.getUrl().toString());
+            }
+        });
 
         web.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -182,4 +205,23 @@ public class FanqieWebLogin extends LinearLayout {
         } catch (Throwable ignored) {
         }
     }
+
+    /**
+     * 拦截非 http/https 的导航。
+     *
+     * 登录页加载的是第三方站点，若不限制协议，恶意页面可以跳 file://
+     * 读取应用私有文件，或用 intent:// 触发别的组件。
+     */
+    private boolean blockUnsafeUrl(WebView v, String url) {
+        if (url == null || url.isEmpty()) {
+            return true;
+        }
+        String low = url.toLowerCase(java.util.Locale.ROOT);
+        if (low.startsWith("http://") || low.startsWith("https://")
+                || low.startsWith("about:") || low.startsWith("data:")) {
+            return false;   // 交给 WebView 自己加载
+        }
+        return true;        // 其余协议一律拦下
+    }
+
 }
