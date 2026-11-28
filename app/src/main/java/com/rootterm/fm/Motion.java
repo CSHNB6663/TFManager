@@ -49,7 +49,7 @@ public final class Motion {
 
     public static final int DUR_STANDARD = 240;
     public static final int DUR_EMPHASIZED = 300;
-    public static final int DUR_ENTER = 260;
+    public static final int DUR_ENTER = 220;
 
     private Motion() {
     }
@@ -68,12 +68,15 @@ public final class Motion {
         v.setAlpha(fromAlpha);
         v.setScaleX(fromScale);
         v.setScaleY(fromScale);
+        // withLayer：动画期间把页面栅格化成一张纹理，缩放只做变换，
+        // 不必每帧重绘整棵视图树 —— 复杂页面缩放的卡顿主要来自这里
         v.animate()
                 .alpha(1f)
                 .scaleX(1f)
                 .scaleY(1f)
                 .setInterpolator(SPRING)
                 .setDuration(DUR_ENTER)
+                .withLayer()
                 .start();
     }
 
@@ -89,6 +92,7 @@ public final class Motion {
                 .scaleY(toScale)
                 .setInterpolator(EMPHASIZED)
                 .setDuration(duration)
+                .withLayer()
                 .start();
     }
 
@@ -124,6 +128,7 @@ public final class Motion {
                 .translationY(0f)
                 .setInterpolator(SPRING)
                 .setDuration(DUR_ENTER)
+                .withLayer()
                 .start();
     }
 

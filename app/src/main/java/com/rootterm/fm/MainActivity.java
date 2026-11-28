@@ -650,6 +650,7 @@ public class MainActivity extends Activity {
         if (mMiuixNav == null || mPages == null) {
             return;
         }
+        // 转场（约 220~240ms）结束后再抓磨砂底，避免和动画抢 GPU
         mPages.postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -657,7 +658,7 @@ public class MainActivity extends Activity {
                     mMiuixNav.autoBackdrop(mPages);
                 }
             }
-        }, 260);
+        }, 480);
     }
 
     /** inset 变化时更新胶囊底部间距。 */
@@ -711,7 +712,7 @@ public class MainActivity extends Activity {
                 final View old = exitingPage;
                 old.setVisibility(View.VISIBLE);
                 old.animate().cancel();
-                old.animate().alpha(0f).scaleX(0.96f).scaleY(0.96f)
+                old.animate().alpha(0f).scaleX(0.97f).scaleY(0.97f)
                         .setInterpolator(Motion.EMPHASIZED)
                         .setDuration(Motion.DUR_STANDARD)
                         .withEndAction(new Runnable() {
@@ -725,7 +726,7 @@ public class MainActivity extends Activity {
                         }).start();
             }
             Motion.reset(shown);
-            Motion.enter(shown, 0.94f, 0f);
+            Motion.enter(shown, 0.96f, 0f);
             mLastShownPage = shown;
         }
         if (tab == TAB_HOME) {

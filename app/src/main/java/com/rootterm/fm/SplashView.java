@@ -15,6 +15,7 @@ import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.view.View;
 import android.view.animation.DecelerateInterpolator;
+import android.view.animation.Interpolator;
 import android.view.animation.OvershootInterpolator;
 
 import com.miuix.squircle.Squircle;
@@ -57,6 +58,20 @@ public class SplashView extends View {
     private final Paint mSubPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     private Path mIconPath;
+    /** 一次性栅格化的图标（含描边），每帧只 drawBitmap，避免重复裁切与大对象分配。 */
+    private android.graphics.Bitmap mIconBmp;
+    private Shader mBgShader;
+    private Shader mGlowShader;
+    private Shader mSweepShader;
+    private float mIconSize;
+    private float mCx;
+    private float mCy;
+    /** 标题每个字的宽度与总宽，避免每帧 measureText。 */
+    private float[] mCharW;
+    private float mTitleW;
+    private static final float TITLE_SIZE_RATIO = 0.075f;
+    private static final float ICON_SIZE_RATIO = 0.235f;
+    private static final Interpolator OVERSHOOT = new OvershootInterpolator(1.7f);
     private final RectF mIconRect = new RectF();
 
     private float mProgress;
@@ -84,7 +99,9 @@ public class SplashView extends View {
         mSubPaint.setColor(SUBTITLE);
         mSubPaint.setTextAlign(Paint.Align.CENTER);
 
-        setLayerType(LAYER_TYPE_HARDWARE, null);
+        // 不做全屏硬件层：内容每帧变化，反复上传纹理反而更慢；
+        // 关键开销已通过图标位图化 + 着色器缓存消除
+        setLayerType(LAYER_TYPE_NONE, null);
     }
 
     // ------------------------------------------------------------ 开关
@@ -142,6 +159,86 @@ public class SplashView extends View {
         }
     }
 
+    // ------------------------------------------------------------ 预计算
+
+    @Override
+    protected void onSizeChanged(int w, int h, int ow, int oh) {
+        super.onSizeChanged(w, h, ow, oh);
+        if (w <= 0 || h <= 0) {
+            return;
+        }
+        mCx = w / 2f;
+        mCy = h * 0.44f;
+        mIconSize = Math.min(w, h) * ICON_SIZE_RATIO;
+        float radius = mIconSize * 0.30f;
+
+        // 背景渐变：只建一次，淡入用 Paint.setAlpha 控制
+        mBgShader = new LinearGradient(0, 0, 0, h, BG_TOP, BG_BOTTOM, Shader.TileMode.CLAMP);
+
+        // 光晕：以最大半径建一次，缩放画布代替重建
+        float glowMax = mIconSize * 2.1f;
+        mGlowShader = new RadialGradient(0, 0, glowMax,
+                new int[]{withAlpha(BRAND, 58), 0x002A6BE0},
+                new float[]{0f, 1f}, Shader.TileMode.CLAMP);
+
+        // 高光带：固定尺寸，靠平移画布扫过
+        mSweepShader = new LinearGradient(-mIconSize * 0.35f, 0, mIconSize * 0.35f, mIconSize * 0.7f,
+                new int[]{0x00FFFFFF, 0x55FFFFFF, 0x00FFFFFF},
+                new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP);
+
+        // 图标路径 + 栅格化位图（只做一次，之后每帧只贴图）
+        mIconPath = Squircle.path(mIconSize, mIconSize, radius);
+        mIconBmp = rasterizeIcon(mIconSize, radius);
+
+        // 标题字宽缓存
+        mTitlePaint.setTextSize(Math.min(w * TITLE_SIZE_RATIO, dp(30f)));
+        String title = "TF管理终端";
+        mCharW = new float[title.length()];
+        float total = 0f;
+        for (int i = 0; i < title.length(); i++) {
+            mCharW[i] = mTitlePaint.measureText(title.substring(i, i + 1));
+            total += mCharW[i];
+        }
+        mTitleW = total;
+    }
+
+    /** 把图标（含深色描边）渲染进一张位图，避免每帧 clipPath + saveLayerAlpha。 */
+    private android.graphics.Bitmap rasterizeIcon(float size, float radius) {
+        int px = Math.max(1, (int) size);
+        try {
+            android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(
+                    px, px, android.graphics.Bitmap.Config.ARGB_8888);
+            Canvas c = new Canvas(bmp);
+            Drawable appIcon = appIcon();
+            if (appIcon != null) {
+                Path clip = Squircle.path(size, size, radius);
+                c.save();
+                c.clipPath(clip);
+                appIcon.setBounds(0, 0, px, px);
+                appIcon.draw(c);
+                c.restore();
+            } else {
+                mIconPaint.setShader(new LinearGradient(0, 0, size, size,
+                        BRAND, BRAND_DEEP, Shader.TileMode.CLAMP));
+                c.drawPath(Squircle.path(size, size, radius), mIconPaint);
+                mIconPaint.setShader(null);
+                mGlyphPaint.setColor(0xFFFFFFFF);
+                mGlyphPaint.setTextSize(size * 0.42f);
+                Paint.FontMetrics fm = mGlyphPaint.getFontMetrics();
+                c.drawText("TF", size / 2f,
+                        size / 2f - (fm.ascent + fm.descent) / 2f, mGlyphPaint);
+            }
+            // 深色细描边
+            mRingPaint.setColor(0xFF141820);
+            mRingPaint.setStrokeWidth(dp(1.2f));
+            c.drawPath(Squircle.path(size, size, radius), mRingPaint);
+            mRingPaint.setStrokeWidth(dp(1.6f));
+            return bmp;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     // ------------------------------------------------------------ 绘制
 
     @Override
@@ -160,125 +257,89 @@ public class SplashView extends View {
             canvas.scale(cs, cs, w / 2f, h * 0.44f);
         }
 
-        final float cx = w / 2f;
-        final float cy = h * 0.44f;          // 图标中心略高于正中
-        final float iconSize = Math.min(w, h) * 0.235f;
-        final float radius = iconSize * 0.30f;
+        final float cx = mCx;
+        final float cy = mCy;
+        final float iconSize = mIconSize;
 
-        // 1) 背景：上下渐变，随进度淡入
+        // 1) 背景：缓存的渐变 + Paint 透明度控制淡入（不重建 Shader）
         float bgA = clamp(mProgress / 0.15f);
-        int bgTop = withAlpha(BG_TOP, (int) (255 * bgA));
-        int bgBottom = withAlpha(BG_BOTTOM, (int) (255 * bgA));
-        mBgPaint.setShader(new LinearGradient(0, 0, 0, h, bgTop, bgBottom, Shader.TileMode.CLAMP));
+        mBgPaint.setShader(mBgShader);
+        mBgPaint.setAlpha((int) (255 * bgA));
         canvas.drawRect(0, 0, w, h, mBgPaint);
+        mBgPaint.setAlpha(255);
 
-        // 2) 中心光晕
+        // 2) 中心光晕：缩放画布复用同一个 RadialGradient
         float glowA = clamp((mProgress - 0.10f) / 0.30f);
         if (glowA > 0) {
-            float glowR = iconSize * (1.6f + 0.5f * glowA);
-            mGlowPaint.setShader(new RadialGradient(cx, cy, glowR,
-                    new int[]{withAlpha(BRAND, (int) (58 * glowA)),
-                            0x002A6BE0},
-                    new float[]{0f, 1f}, Shader.TileMode.CLAMP));
-            canvas.drawCircle(cx, cy, glowR, mGlowPaint);
+            float k = (1.6f + 0.5f * glowA) / 2.1f;   // 相对最大半径的比例
+            int sc = canvas.save();
+            canvas.scale(k, k, cx, cy);
+            mGlowPaint.setShader(mGlowShader);
+            mGlowPaint.setAlpha((int) (255 * glowA));
+            canvas.drawCircle(cx, cy, iconSize * 2.1f, mGlowPaint);
+            canvas.restoreToCount(sc);
+            mGlowPaint.setAlpha(255);
         }
 
         // 3) 扩散光环（两圈，错开时间）
         drawRing(canvas, cx, cy, iconSize, 0.18f, 0.55f);
         drawRing(canvas, cx, cy, iconSize, 0.32f, 0.55f);
 
-        // 4) 图标：缩放 + 回弹 + 淡入
+        // 4) 图标：位图贴图 + 缩放回弹（零分配）
         float iconIn = clamp((mProgress - 0.10f) / 0.32f);
-        if (iconIn > 0) {
-            float scale = new OvershootInterpolator(1.7f).getInterpolation(iconIn);
-            scale = 0.55f + 0.45f * scale;
+        if (iconIn > 0 && mIconBmp != null && !mIconBmp.isRecycled()) {
+            float scl = 0.55f + 0.45f * OVERSHOOT.getInterpolation(iconIn);
             int alpha = (int) (255 * clamp(iconIn * 1.8f));
 
-            canvas.save();
+            int sc2 = canvas.save();
             canvas.translate(cx, cy);
-            canvas.scale(scale, scale);
+            canvas.scale(scl, scl);
             canvas.rotate(-4f * (1f - iconIn));
 
             float half = iconSize / 2f;
-            mIconRect.set(-half, -half, half, half);
-            mIconPath = Squircle.path(iconSize, iconSize, radius);
-            canvas.save();
-            canvas.translate(-half, -half);
+            mIconPaint.setAlpha(alpha);
+            canvas.drawBitmap(mIconBmp, -half, -half, mIconPaint);
+            mIconPaint.setAlpha(255);
 
-            // 真实 App 图标：裁到圆角里绘制
-            Drawable appIcon = appIcon();
-            if (appIcon != null) {
-                int layer = canvas.saveLayerAlpha(0, 0, iconSize, iconSize, alpha);
-                canvas.clipPath(mIconPath);
-                appIcon.setBounds(0, 0, (int) iconSize, (int) iconSize);
-                appIcon.draw(canvas);
-                canvas.restoreToCount(layer);
-            } else {
-                // 兜底：取不到图标时画品牌色方块
-                mIconPaint.setAlpha(alpha);
-                mIconPaint.setShader(new LinearGradient(0, 0, iconSize, iconSize,
-                        withAlpha(BRAND, alpha), withAlpha(BRAND_DEEP, alpha),
-                        Shader.TileMode.CLAMP));
-                canvas.drawPath(mIconPath, mIconPaint);
-                mGlyphPaint.setAlpha(alpha);
-                mGlyphPaint.setTextSize(iconSize * 0.42f);
-                Paint.FontMetrics fm = mGlyphPaint.getFontMetrics();
-                float baseline = iconSize / 2f - (fm.ascent + fm.descent) / 2f;
-                canvas.drawText("TF", iconSize / 2f, baseline, mGlyphPaint);
-            }
-
-            // 深色细描边：浅底上让图标边缘清楚
-            mRingPaint.setAlpha((int) (alpha * 0.28f));
-            mRingPaint.setColor(0xFF141820);
-            mRingPaint.setStrokeWidth(dp(1.2f));
-            canvas.drawPath(mIconPath, mRingPaint);
-            mRingPaint.setStrokeWidth(dp(1.6f));
-
-            // 高光斜扫
+            // 高光斜扫：固定着色器 + 平移画布
             float sweep = clamp((mProgress - 0.34f) / 0.26f);
             if (sweep > 0 && sweep < 1) {
                 float x = -iconSize + sweep * iconSize * 2.4f;
-                mSweepPaint.setShader(new LinearGradient(x - iconSize * 0.35f, 0, x + iconSize * 0.35f, iconSize * 0.7f,
-                        new int[]{0x00FFFFFF, 0x55FFFFFF, 0x00FFFFFF},
-                        new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
-                canvas.drawPath(mIconPath, mSweepPaint);
+                int sc3 = canvas.save();
+                canvas.translate(x, 0);
+                canvas.clipPath(mIconPath);
+                canvas.translate(-half, -half);
+                mSweepPaint.setShader(mSweepShader);
+                canvas.drawRect(0, 0, iconSize, iconSize, mSweepPaint);
+                canvas.restoreToCount(sc3);
             }
-            canvas.restore();
-            canvas.restore();
+            canvas.restoreToCount(sc2);
         }
 
-        // 5) 名称：逐字浮现（澎湃的标题逐字入场）
-        final float titleSize = Math.min(w * 0.075f, dp(30f));
+        // 5) 名称：逐字浮现（用缓存字宽，避免每帧 measureText）
         final String title = "TF管理终端";
-        mTitlePaint.setTextSize(titleSize);
-        float textStart = 0.44f;
-        float perChar = 0.035f;               // 每个字间隔
-        float titleBaseY = cy + iconSize * 0.95f;
-        float totalW = mTitlePaint.measureText(title);
-        float tx = cx - totalW / 2f;
+        mTitlePaint.setTextSize(Math.min(w * TITLE_SIZE_RATIO, dp(30f)));
+        float tx = cx - mTitleW / 2f;
         for (int i = 0; i < title.length(); i++) {
-            float t = clamp((mProgress - (textStart + i * perChar)) / 0.18f);
-            if (t <= 0f) {
-                continue;
+            float t = clamp((mProgress - (0.44f + i * 0.035f)) / 0.18f);
+            float cw = mCharW == null || i >= mCharW.length ? 0f : mCharW[i];
+            if (t > 0f) {
+                int ta = (int) (255 * t);
+                float dy = dp(14f) * (1f - t);
+                mTitlePaint.setAlpha(ta);
+                canvas.drawText(title.substring(i, i + 1), tx + cw / 2f,
+                        cy + iconSize * 0.95f + dy, mTitlePaint);
             }
-            String ch = title.substring(i, i + 1);
-            float cw = mTitlePaint.measureText(ch);
-            int ta = (int) (255 * t);
-            float dy = dp(14f) * (1f - t);
-            mTitlePaint.setAlpha(ta);
-            canvas.drawText(ch, tx + cw / 2f, titleBaseY + dy, mTitlePaint);
             tx += cw;
         }
 
         // 副标题稍后整体浮入
         float subIn = clamp((mProgress - 0.62f) / 0.20f);
         if (subIn > 0) {
-            int sa = (int) (255 * subIn * 0.72f);
-            float sd = dp(12f) * (1f - subIn);
-            mSubPaint.setAlpha(sa);
+            mSubPaint.setAlpha((int) (255 * subIn * 0.72f));
             mSubPaint.setTextSize(Math.min(w * 0.036f, dp(14f)));
             canvas.drawText("文件 · 终端 · 分区", cx,
-                    titleBaseY + dp(26f) + sd, mSubPaint);
+                    cy + iconSize * 0.95f + dp(26f) + dp(12f) * (1f - subIn), mSubPaint);
         }
 
         // 6) 收束：内容整体轻微缩小 + 淡化，背景随之落定（澎湃的「收进应用」）
