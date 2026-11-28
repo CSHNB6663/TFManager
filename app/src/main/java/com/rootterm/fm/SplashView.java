@@ -38,8 +38,13 @@ public class SplashView extends View {
     private static final String PREF = "ui";
     private static final String KEY_DONE = "splash_played_v1";
 
-    /** 整段动画时长（毫秒）。 */
-    private static final long DURATION = 2000L;
+    /** 完整档时长（毫秒）。 */
+    private static final long DURATION_FULL = 2000L;
+    /** 轻柔档时长（毫秒）：只保留淡入与图标落位。 */
+    private static final long DURATION_LITE = 1100L;
+
+    /** 动画强度（0/1/2），默认取自 Motion.LEVEL。 */
+    private int mLevel = 1;
 
     private static final int BG_TOP = 0xFFFAFAFC;
     private static final int BG_BOTTOM = 0xFFE9ECF2;
@@ -123,6 +128,11 @@ public class SplashView extends View {
         mOnFinish = l;
     }
 
+    /** 设置动画强度：0 关闭（不播放）、1 轻柔、2 完整。 */
+    public void setLevel(int level) {
+        mLevel = Math.max(1, Math.min(2, level));
+    }
+
     // ------------------------------------------------------------ 播放
 
     public void start() {
@@ -131,7 +141,7 @@ public class SplashView extends View {
         }
         mStarted = true;
         ValueAnimator a = ValueAnimator.ofFloat(0f, 1f);
-        a.setDuration(DURATION);
+        a.setDuration(mLevel >= 2 ? DURATION_FULL : DURATION_LITE);
         a.setInterpolator(new DecelerateInterpolator(1.1f));
         a.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override
@@ -249,7 +259,7 @@ public class SplashView extends View {
             return;
         }
         // 收束阶段：整体内容轻微缩小，配合背景淡出，形成「收进应用」的观感
-        float converge = clamp((mProgress - 0.80f) / 0.20f);
+        float converge = mLevel >= 2 ? clamp((mProgress - 0.80f) / 0.20f) : 0f;
         int saveCount = -1;
         if (converge > 0f) {
             saveCount = canvas.save();
@@ -294,7 +304,9 @@ public class SplashView extends View {
             int sc2 = canvas.save();
             canvas.translate(cx, cy);
             canvas.scale(scl, scl);
-            canvas.rotate(-4f * (1f - iconIn));
+            if (mLevel >= 2) {
+                canvas.rotate(-4f * (1f - iconIn));
+            }
 
             float half = iconSize / 2f;
             mIconPaint.setAlpha(alpha);
@@ -302,7 +314,7 @@ public class SplashView extends View {
             mIconPaint.setAlpha(255);
 
             // 高光斜扫：固定着色器 + 平移画布
-            float sweep = clamp((mProgress - 0.34f) / 0.26f);
+            float sweep = mLevel >= 2 ? clamp((mProgress - 0.34f) / 0.26f) : -1f;
             if (sweep > 0 && sweep < 1) {
                 float x = -iconSize + sweep * iconSize * 2.4f;
                 int sc3 = canvas.save();
@@ -321,7 +333,10 @@ public class SplashView extends View {
         mTitlePaint.setTextSize(Math.min(w * TITLE_SIZE_RATIO, dp(30f)));
         float tx = cx - mTitleW / 2f;
         for (int i = 0; i < title.length(); i++) {
-            float t = clamp((mProgress - (0.44f + i * 0.035f)) / 0.18f);
+            // 轻柔档不逐字，整句一起淡入
+            float t = mLevel >= 2
+                    ? clamp((mProgress - (0.44f + i * 0.035f)) / 0.18f)
+                    : clamp((mProgress - 0.40f) / 0.20f);
             float cw = mCharW == null || i >= mCharW.length ? 0f : mCharW[i];
             if (t > 0f) {
                 int ta = (int) (255 * t);

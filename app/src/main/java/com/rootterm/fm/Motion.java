@@ -51,6 +51,40 @@ public final class Motion {
     public static final int DUR_EMPHASIZED = 300;
     public static final int DUR_ENTER = 220;
 
+    /** 动画强度：0 关闭 / 1 轻柔（默认）/ 2 完整。 */
+    public static int LEVEL = 1;
+
+    /** 从偏好读取强度。 */
+    public static void loadLevel(android.content.Context c) {
+        try {
+            LEVEL = c.getSharedPreferences("ui", android.content.Context.MODE_PRIVATE)
+                    .getInt("anim_level", 1);
+        } catch (Throwable ignored) {
+            LEVEL = 1;
+        }
+        if (LEVEL < 0 || LEVEL > 2) {
+            LEVEL = 1;
+        }
+    }
+
+    public static void saveLevel(android.content.Context c, int level) {
+        LEVEL = Math.max(0, Math.min(2, level));
+        try {
+            c.getSharedPreferences("ui", android.content.Context.MODE_PRIVATE)
+                    .edit().putInt("anim_level", LEVEL).apply();
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** 当前等级使用的插值器：轻柔档不用回弹，避免「晃」。 */
+    private static Interpolator ip() {
+        return LEVEL >= 2 ? SPRING : DECEL;
+    }
+
+    private static int dur() {
+        return LEVEL >= 2 ? DUR_ENTER : 160;
+    }
+
     private Motion() {
     }
 
@@ -86,12 +120,17 @@ public final class Motion {
             return;
         }
         v.animate().cancel();
+        if (LEVEL == 0) {
+            v.setAlpha(toAlpha);
+            return;
+        }
+        float to = LEVEL >= 2 ? toScale : 0.99f;
         v.animate()
                 .alpha(toAlpha)
-                .scaleX(toScale)
-                .scaleY(toScale)
-                .setInterpolator(EMPHASIZED)
-                .setDuration(duration)
+                .scaleX(to)
+                .scaleY(to)
+                .setInterpolator(ip())
+                .setDuration(LEVEL >= 2 ? duration : 140)
                 .withLayer()
                 .start();
     }
@@ -116,18 +155,27 @@ public final class Motion {
         if (v == null) {
             return;
         }
-        final float dy = v.getResources().getDisplayMetrics().density * 10f;
+        if (LEVEL == 0) {
+            v.setAlpha(1f);
+            v.setScaleX(1f);
+            v.setScaleY(1f);
+            v.setTranslationY(0f);
+            return;
+        }
+        // 轻柔档：不做上浮、缩放也几乎看不出来，只淡入
+        final boolean full = LEVEL >= 2;
+        final float dy = full ? v.getResources().getDisplayMetrics().density * 10f : 0f;
         v.setAlpha(0f);
-        v.setScaleX(0.92f);
-        v.setScaleY(0.92f);
+        v.setScaleX(full ? 0.92f : 0.97f);
+        v.setScaleY(full ? 0.92f : 0.97f);
         v.setTranslationY(dy);
         v.animate()
                 .alpha(1f)
                 .scaleX(1f)
                 .scaleY(1f)
                 .translationY(0f)
-                .setInterpolator(SPRING)
-                .setDuration(DUR_ENTER)
+                .setInterpolator(ip())
+                .setDuration(full ? DUR_ENTER : 150)
                 .withLayer()
                 .start();
     }

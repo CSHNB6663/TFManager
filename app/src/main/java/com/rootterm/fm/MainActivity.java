@@ -140,6 +140,7 @@ public class MainActivity extends Activity {
         FanqieFontMap.setOverride(RemoteConfig.fontMap());
         // 固定玻璃配色（已移除 Monet 动态取色）
         ThemeColors.init(this);
+        Motion.loadLevel(this);
         C_BG = ThemeColors.SURFACE;
         C_ACCENT = ThemeColors.ACCENT;
         C_NAV_ACTIVE_BG = ThemeColors.ACCENT_CONTAINER;
@@ -147,7 +148,7 @@ public class MainActivity extends Activity {
         UiConfig.ON_ACCENT = ThemeColors.ON_ACCENT;
         setupWindow();
         android.view.View rootView = buildRoot();
-        if (SplashView.shouldPlay(this)) {
+        if (SplashView.shouldPlay(this) && Motion.LEVEL > 0) {
             startSplashThen(rootView);      // 先只显示动画，播完再进应用
         } else {
             setContentView(rootView);
@@ -619,6 +620,7 @@ public class MainActivity extends Activity {
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(shell);
 
+        splash.setLevel(Motion.LEVEL);
         splash.setOnFinish(new SplashView.OnFinish() {
             @Override
             public void onFinish() {
@@ -1969,6 +1971,13 @@ public class MainActivity extends Activity {
         look.infoRow("界面风格", "Miuix（玻璃）");
         look.infoRow("语言", "跟随系统");
         look.infoRow("主题配色", "固定玻璃蓝");
+        look.clickRow("动画效果", "页面切换 / 弹窗 / 启动动画", animLevelName(Motion.LEVEL),
+                new MiuixPreference.OnClick() {
+                    @Override
+                    public void onClick(View v) {
+                        showAnimLevelDialog();
+                    }
+                });
         page.addView(look.build());
 
         // ---------------- 状态栏常驻 ----------------
@@ -3133,6 +3142,76 @@ public class MainActivity extends Activity {
     }
 
     /** 平台显示名。 */
+    /** 动画强度名称。 */
+    private static String animLevelName(int level) {
+        if (level <= 0) {
+            return "关闭（最快）";
+        }
+        return level >= 2 ? "完整（带弹性）" : "轻柔（推荐）";
+    }
+
+    /** 选择动画强度。 */
+    private void showAnimLevelDialog() {
+        final String[] names = {"关闭（最快）", "轻柔（推荐）", "完整（带弹性）"};
+        final String[] descs = {
+                "不做任何转场，最省电也最不卡",
+                "轻微淡入、几乎无位移，观感稳",
+                "澎湃风格弹性回弹，最生动",
+        };
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        for (int i = 0; i < names.length; i++) {
+            final int lv = i;
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.VERTICAL);
+            row.setPadding(dp(4), dp(10), dp(4), dp(10));
+            row.setBackgroundColor(lv == Motion.LEVEL ? ThemeColors.ACCENT_CONTAINER : 0x00000000);
+            TextView t = UiConfig.text(this, names[i], 14f,
+                    lv == Motion.LEVEL ? ThemeColors.ON_ACCENT_CONTAINER : MiuixTheme.onSurface());
+            t.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            TextView d = UiConfig.text(this, descs[i], 11f, MiuixTheme.onSurfaceVariant());
+            row.addView(t);
+            row.addView(d);
+            row.setClickable(true);
+            row.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    Motion.saveLevel(MainActivity.this, lv);
+                    AppLog.log("UI", "anim level = " + lv);
+                    refreshSettingsPage();
+                    toast("动画效果：" + names[lv]);
+                }
+            });
+            box.addView(row);
+        }
+        MiuixWindow.builder(this)
+                .title("动画效果")
+                .content(box)
+                .scrollable(false)
+                .positive("完成", null)
+                .show();
+    }
+
+    /** 重建设置页，让新选择立刻反映到界面上。 */
+    private void refreshSettingsPage() {
+        try {
+            if (mSettingsPage != null && mPages != null) {
+                int idx = mPages.indexOfChild(mSettingsPage);
+                mSettingsPage = buildSettingsPage();
+                if (idx >= 0) {
+                    mPages.removeViewAt(idx);
+                }
+                mPages.addView(mSettingsPage, idx < 0 ? 0 : idx,
+                        new FrameLayout.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT));
+                selectTab(TAB_SETTINGS);
+            }
+        } catch (Throwable t) {
+            AppLog.log("UI", "refreshSettingsPage 失败", t);
+        }
+    }
+
     private static String musicSourceName(String src) {
         if (MusicSearch.SRC_QQ.equals(src)) {
             return "QQ音乐";
