@@ -2011,7 +2011,22 @@ public class MainActivity extends Activity {
                 new MiuixPreference.OnClick() {
                     @Override
                     public void onClick(View v) {
-                        showAnimLevelDialog();
+                        // 选项贴着这一行展开（不是全屏居中弹窗）
+                        OptionSheet.show(MainActivity.this, v, ANIM_LEVEL_NAMES,
+                                Motion.LEVEL, new OptionSheet.OnPick() {
+                                    @Override
+                                    public void onPick(int index) {
+                                        Motion.saveLevel(MainActivity.this, index);
+                                        AppLog.log("UI", "anim level = " + index);
+                                        toast("动画效果：" + ANIM_LEVEL_NAMES[index]);
+                                        v.postDelayed(new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                refreshSettingsPage();
+                                            }
+                                        }, 180);
+                                    }
+                                });
                     }
                 });
         page.addView(look.build());
@@ -3178,6 +3193,9 @@ public class MainActivity extends Activity {
     }
 
     /** 平台显示名。 */
+    /** 动画档位名称（下拉浮层与摘要共用）。 */
+    private static final String[] ANIM_LEVEL_NAMES = {"关闭（最快）", "轻柔（推荐）", "完整（带弹性）"};
+
     /** 动画强度名称。 */
     private static String animLevelName(int level) {
         if (level <= 0) {
