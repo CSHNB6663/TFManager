@@ -82,6 +82,8 @@ public class MainActivity extends Activity {
     private LinearLayout mSettingsPage;
     private DualFilePanel mFiles;
     private int mTab = TAB_HOME;
+    /** 上一次显示的页面，用于交叉转场。 */
+    private View mLastShownPage;
 
     private MiuixNavBar mMiuixNav;
     private View mNavContainer;
@@ -685,6 +687,8 @@ public class MainActivity extends Activity {
         }
         mTab = tab;
         mHomePage.setVisibility(tab == TAB_HOME ? View.VISIBLE : View.GONE);
+        // 先记下切换前的可见页，供交叉转场使用
+        final View exitingPage = mLastShownPage;
         mSettingsPage.setVisibility(tab == TAB_SETTINGS ? View.VISIBLE : View.GONE);
         if (mPartCard != null) {
             mPartCard.setVisibility(tab == TAB_PART ? View.VISIBLE : View.GONE);
@@ -701,17 +705,28 @@ public class MainActivity extends Activity {
                 : (tab == TAB_FILES ? mFilesCard
                 : (tab == TAB_PART ? mPartCard : mSettingsPage));
         if (shown != null) {
-            shown.setAlpha(0.92f);
-            shown.setTranslationY(dp(8));
-            final View pageView = shown;
-            shown.animate().alpha(1f).translationY(0f).setDuration(160)
-                    .withEndAction(new Runnable() {
-                        @Override
-                        public void run() {
-                            pageView.setAlpha(1f);
-                            pageView.setTranslationY(0f);
-                        }
-                    }).start();
+            // 澎湃风格转场：新页从 0.94 弹性放大落位；旧页缩到 0.96 淡出。
+            // 交叉进行，且旧页要等淡出结束才真正 GONE，否则会看到硬切。
+            if (exitingPage != null && exitingPage != shown) {
+                final View old = exitingPage;
+                old.setVisibility(View.VISIBLE);
+                old.animate().cancel();
+                old.animate().alpha(0f).scaleX(0.96f).scaleY(0.96f)
+                        .setInterpolator(Motion.EMPHASIZED)
+                        .setDuration(Motion.DUR_STANDARD)
+                        .withEndAction(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (old != mLastShownPage) {
+                                    old.setVisibility(View.GONE);
+                                }
+                                Motion.reset(old);
+                            }
+                        }).start();
+            }
+            Motion.reset(shown);
+            Motion.enter(shown, 0.94f, 0f);
+            mLastShownPage = shown;
         }
         if (tab == TAB_HOME) {
             refreshHome();

@@ -151,6 +151,15 @@ public class SplashView extends View {
         if (w <= 0 || h <= 0) {
             return;
         }
+        // 收束阶段：整体内容轻微缩小，配合背景淡出，形成「收进应用」的观感
+        float converge = clamp((mProgress - 0.80f) / 0.20f);
+        int saveCount = -1;
+        if (converge > 0f) {
+            saveCount = canvas.save();
+            float cs = 1f - 0.06f * converge;
+            canvas.scale(cs, cs, w / 2f, h * 0.44f);
+        }
+
         final float cx = w / 2f;
         final float cy = h * 0.44f;          // 图标中心略高于正中
         final float iconSize = Math.min(w, h) * 0.235f;
@@ -238,29 +247,49 @@ public class SplashView extends View {
             canvas.restore();
         }
 
-        // 5) 名称与副标题
-        float textIn = clamp((mProgress - 0.46f) / 0.26f);
-        if (textIn > 0) {
-            int ta = (int) (255 * textIn);
-            float dy = dp(18f) * (1f - textIn);
+        // 5) 名称：逐字浮现（澎湃的标题逐字入场）
+        final float titleSize = Math.min(w * 0.075f, dp(30f));
+        final String title = "TF管理终端";
+        mTitlePaint.setTextSize(titleSize);
+        float textStart = 0.44f;
+        float perChar = 0.035f;               // 每个字间隔
+        float titleBaseY = cy + iconSize * 0.95f;
+        float totalW = mTitlePaint.measureText(title);
+        float tx = cx - totalW / 2f;
+        for (int i = 0; i < title.length(); i++) {
+            float t = clamp((mProgress - (textStart + i * perChar)) / 0.18f);
+            if (t <= 0f) {
+                continue;
+            }
+            String ch = title.substring(i, i + 1);
+            float cw = mTitlePaint.measureText(ch);
+            int ta = (int) (255 * t);
+            float dy = dp(14f) * (1f - t);
             mTitlePaint.setAlpha(ta);
-            mTitlePaint.setTextSize(Math.min(w * 0.075f, dp(30f)));
-            canvas.drawText("TF管理终端", cx, cy + iconSize * 0.95f + dy, mTitlePaint);
-
-            mSubPaint.setAlpha((int) (ta * 0.72f));
-            mSubPaint.setTextSize(Math.min(w * 0.036f, dp(14f)));
-            canvas.drawText("文件 · 终端 · 分区", cx,
-                    cy + iconSize * 0.95f + dp(26f) + dy, mSubPaint);
+            canvas.drawText(ch, tx + cw / 2f, titleBaseY + dy, mTitlePaint);
+            tx += cw;
         }
 
-        // 6) 收尾：整体放大淡出
-        float out = clamp((mProgress - 0.82f) / 0.18f);
+        // 副标题稍后整体浮入
+        float subIn = clamp((mProgress - 0.62f) / 0.20f);
+        if (subIn > 0) {
+            int sa = (int) (255 * subIn * 0.72f);
+            float sd = dp(12f) * (1f - subIn);
+            mSubPaint.setAlpha(sa);
+            mSubPaint.setTextSize(Math.min(w * 0.036f, dp(14f)));
+            canvas.drawText("文件 · 终端 · 分区", cx,
+                    titleBaseY + dp(26f) + sd, mSubPaint);
+        }
+
+        // 6) 收束：内容整体轻微缩小 + 淡化，背景随之落定（澎湃的「收进应用」）
+        float out = clamp((mProgress - 0.80f) / 0.20f);
         if (out > 0) {
-            int veil = (int) (255 * out);
+            int veil = (int) (235 * out * out);
             mBgPaint.setShader(null);
             mBgPaint.setColor(withAlpha(0xFFFAFAFC, veil));
             canvas.drawRect(0, 0, w, h, mBgPaint);
         }
+        restoreConverge(canvas, saveCount);
     }
 
     private Drawable mAppIcon;
@@ -278,6 +307,15 @@ public class SplashView extends View {
             }
         }
         return mAppIcon;
+    }
+
+    private void restoreConverge(Canvas canvas, int saveCount) {
+        if (saveCount >= 0) {
+            try {
+                canvas.restoreToCount(saveCount);
+            } catch (Throwable ignored) {
+            }
+        }
     }
 
     private void drawRing(Canvas canvas, float cx, float cy, float iconSize,

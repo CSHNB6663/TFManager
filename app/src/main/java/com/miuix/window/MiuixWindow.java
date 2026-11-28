@@ -353,6 +353,8 @@ public final class MiuixWindow {
             }
 
             d.show();
+            // 澎湃风格出现动画：0.92 → 1.0 弹性放大 + 淡入 + 轻微上浮
+            com.rootterm.fm.Motion.dialogEnter(glass);
             if (ctx instanceof Activity) {
                 glass.captureBackdrop(((Activity) ctx).getWindow().getDecorView());
             }
