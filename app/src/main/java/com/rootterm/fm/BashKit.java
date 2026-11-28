@@ -57,8 +57,13 @@ public final class BashKit {
         if (bad != null) {
             return null;
         }
+        // 已释放过：先校验临时副本有没有被掉包，再决定复用还是重装
         if (isInstalled()) {
-            return BASH;
+            String stale = AssetCheck.verifyInstalled(DIR);
+            if (stale == null) {
+                return BASH;
+            }
+            AppLog.log("BASH", "临时目录校验失败，重新释放: " + stale);
         }
         try {
             File dir = new File(ctx.getFilesDir(), ASSET_DIR);
@@ -69,13 +74,24 @@ public final class BashKit {
                 File out = new File(dir, name);
                 copyAsset(ctx, ASSET_DIR + "/" + name, out);
             }
-            // 用 root 复制到 /data/local/tmp/tfbash 并给执行权限
-            String cmd = "mkdir -p " + DIR
+            // 用 root 复制到 /data/local/tmp/tfbash 并给执行权限。
+            // 目录收紧到本应用 uid：避免 shell 等其它进程在同一目录掉包二进制。
+            int uid = android.os.Process.myUid();
+            String cmd = "rm -rf " + DIR + " && mkdir -p " + DIR
                     + " && cp -f " + Shell.quote(dir.getAbsolutePath()) + "/* " + DIR + "/"
                     + " && chmod 755 " + DIR + "/*"
+                    + " && chown -R " + uid + ":" + uid + " " + DIR
+                    + " && chmod 700 " + DIR
                     + " && " + envPrefix() + BASH + " --version 2>/dev/null | head -n 1";
             String result = Shell.execSync(cmd, 30000);
-            if (result.contains("GNU bash")) {
+            if (result != null && result.contains("GNU bash")) {
+                // 释放后立刻复核哈希，确保落地内容与 APK 内一致
+                String fresh = AssetCheck.verifyInstalled(DIR);
+                if (fresh != null) {
+                    AppLog.log("BASH", "释放后校验失败: " + fresh);
+                    Shell.execSync("rm -rf " + DIR, 8000);
+                    return null;
+                }
                 return BASH;
             }
         } catch (Throwable ignored) {

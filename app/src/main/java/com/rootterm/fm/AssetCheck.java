@@ -41,6 +41,37 @@ public final class AssetCheck {
         return null;
     }
 
+    /**
+     * 校验 /data/local/tmp/tfbash 里的副本。
+     *
+     * <p>{@link #verify(Context)} 只管 APK 内的 assets（防二次打包）。
+     * 但真正以 root 执行的是释放到临时目录的那份 —— 该目录 shell 可写，
+     * 任何能写它的进程都能掉包成后门。这里比对运行时的实际文件。</p>
+     *
+     * @return null 表示通过；否则返回失败原因
+     */
+    public static String verifyInstalled(String dir) {
+        String[][] map = BuildAssets.MAP;
+        if (map == null || map.length == 0) {
+            return null;
+        }
+        for (String[] e : map) {
+            String name = e[0];
+            String expected = e[1];
+            String out = Shell.execSync(
+                    "sha256sum " + Shell.quote(dir + "/" + name) + " 2>/dev/null | cut -d' ' -f1",
+                    8000);
+            String actual = out == null ? "" : out.trim();
+            if (actual.isEmpty()) {
+                return "副本缺失：" + name;
+            }
+            if (!expected.equalsIgnoreCase(actual)) {
+                return "副本被替换：" + name;
+            }
+        }
+        return null;
+    }
+
     private static String sha256Asset(Context ctx, String path) throws Exception {
         InputStream in = null;
         try {

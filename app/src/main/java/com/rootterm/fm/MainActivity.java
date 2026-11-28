@@ -2768,9 +2768,17 @@ public class MainActivity extends Activity {
             return;
         }
         uiPrefs().edit().putString("notice_shown", notice).apply();
+        // 公告内容由远端 config.json 控制，来源可信度有限：
+        // 限长 + 明确标注来源，降低被当作官方通知钓鱼的风险
+        String safeNotice = notice.trim();
+        if (safeNotice.length() > 600) {
+            safeNotice = safeNotice.substring(0, 600) + "…";
+        }
+        safeNotice = safeNotice
+                + "\n\n—— 以上内容来自云端配置，请勿在此输入密码或前往陌生链接";
         MiuixWindow.builder(this)
-                .title("公告")
-                .message(notice)
+                .title("公告（来自云端配置）")
+                .message(safeNotice)
                 .positive("知道了", null)
                 .show();
     }

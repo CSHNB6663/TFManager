@@ -802,11 +802,73 @@ public class PartitionPanel extends LinearLayout {
                             toast("镜像文件不存在");
                             return;
                         }
-                        runDd(p, path, false);
+                        // 二次确认：刷写分片不可撤销，单纯点一下按钮太容易误触
+                        confirmFlash(p, path);
                     }
                 })
                 .negative("取消", null)
                 .show();
+    }
+
+    /**
+     * 刷写前二次确认：显示镜像大小 / 目标分区 / 设备路径，
+     * 并要求手输分区名，避免手滑点错把设备写砖。
+     */
+    private void confirmFlash(final Part p, final String imgPath) {
+        final android.widget.EditText et = new android.widget.EditText(ctx);
+        et.setSingleLine(true);
+        et.setHint("输入分区名 " + p.name + " 以确认");
+        et.setTextSize(12f);
+
+        String size = Shell.execSync("stat -c %s " + Shell.quote(imgPath) + " 2>/dev/null", 8000);
+        String humanSize = human(parseLongSafe(size));
+
+        LinearLayout box = new LinearLayout(ctx);
+        box.setOrientation(VERTICAL);
+        TextView warn = new TextView(ctx);
+        warn.setText("最后确认\n\n"
+                + "· 镜像：" + imgPath + "\n"
+                + "· 大小：" + humanSize + "\n"
+                + "· 写入：" + p.path + "（" + human(p.size) + "）\n\n"
+                + "分区 " + p.name + " 的原有内容会被完全覆盖，无法恢复。\n"
+                + "请在下方输入分区名以确认。");
+        warn.setTextSize(12f);
+        warn.setTextColor(0xFFC0392B);
+        warn.setTextIsSelectable(true);
+        box.addView(warn);
+        LinearLayout.LayoutParams elp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        elp.topMargin = dp(10);
+        box.addView(et, elp);
+
+        MiuixWindow.builder(ctx)
+                .title("不可撤销操作")
+                .content(box)
+                .scrollable(false)
+                .positive("刷写", new MiuixWindow.OnAction() {
+                    @Override
+                    public void onClick(android.app.Dialog d) {
+                        String typed = et.getText().toString().trim();
+                        if (!p.name.equalsIgnoreCase(typed)) {
+                            toast("分区名不匹配，已取消");
+                            return;
+                        }
+                        runDd(p, imgPath, false);
+                    }
+                })
+                .negative("取消", null)
+                .show();
+    }
+
+    private static long parseLongSafe(String s) {
+        if (s == null) {
+            return 0;
+        }
+        try {
+            return Long.parseLong(s.trim());
+        } catch (Throwable t) {
+            return 0;
+        }
     }
 
     private String lastBackupFor(String name) {
